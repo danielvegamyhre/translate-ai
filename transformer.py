@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+import torch
+from torch import nn
+from torch.nn import functional as f
+
+from .encoder import Encoder
+from .decoder import Decoder
+
+class TransformerTranslator:
+    def __init__(self,
+                 input_vocab_size: int,
+                 output_vocab_size: int,
+                 embed_dim: int,
+                 d_model: int = 512,
+                 num_encoder_layers: int = 6,
+                 num_decoder_layers: int = 6,
+                 num_attention_heads: int = 4,
+                 ffwd_dim: int = 2048,
+                 max_seq_len: int = 512,
+                 max_output_tokens: int = 1000):
+        super(TransformerTranslator, self).__init__()
+        self.encoder = Encoder(num_encoder_layers, 
+                               input_vocab_size, 
+                               embed_dim, 
+                               d_model, 
+                               max_seq_len, 
+                               num_attention_heads, 
+                               ffwd_dim)
+        self.decoder = Decoder(output_vocab_size,
+                               num_decoder_layers,
+                               max_output_tokens,
+                               num_attention_heads, 
+                               embed_dim,
+                               d_model,
+                               ffwd_dim)
+        self.linear = nn.Linear(d_model, output_vocab_size)
+
+    def forward(x: torch.Tensor) -> torch.Tensor: 
+        pass
