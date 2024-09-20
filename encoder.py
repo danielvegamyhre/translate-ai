@@ -23,8 +23,9 @@ class Encoder(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (B,T) -> (B,T,C)
-        embed = self.position_embedding(x) + self.token_embedding(x)
-        return self.layers(embed) 
+        tok_embed = self.token_embedding(x)
+        pos_embed = self.position_embedding(torch.arange(len(x)))
+        return self.layers(tok_embed + pos_embed) 
 
 
 class EncoderLayer(nn.Module):
@@ -58,12 +59,16 @@ class MultiHeadSelfAttention(nn.Module):
             SelfAttentionHead(embed_dim, head_dim, mask)
             for _ in range(num_heads)
         ]
+        self.linear = nn.Linear(d_model, d_model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # head(x) => (B,T,head_size)
-        # concat them all along head_size dim -> (B,T,d_model)
-        # since d_model = head_size * num_heads 
-        return torch.cat([head(x) for head in self.heads], dim=-1)
+        # concat them all along head_size dim -> (B,T,H)
+        # since H = head_size * num_heads 
+        x = torch.cat([head(x) for head in self.heads], dim=-1)
+        # (B,T,H) -> B,T,H
+        x = self.linear(x)
+        return x
 
 class SelfAttentionHead(nn.Module):
     '''Self attention head takes 2 parameters:
@@ -107,7 +112,8 @@ class SelfAttentionHead(nn.Module):
         values = self.value_layer(x)
 
         # (B,T,T) @ (B,T,H) = B,T,H
-        return weighted_similarities @ values
+        out = weighted_similarities @ values
+        return out
 
 class FeedForward(nn.Module):
     def __init__(self, d_model: int, ffwd_dim: int):

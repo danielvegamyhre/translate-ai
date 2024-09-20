@@ -36,5 +36,13 @@ class TransformerTranslator:
                                ffwd_dim)
         self.linear = nn.Linear(d_model, output_vocab_size)
 
-    def forward(x: torch.Tensor) -> torch.Tensor: 
-        pass
+    def forward(self, x: torch.Tensor, targets: torch.Tensor = None) -> torch.Tensor: 
+        # x shape (B,T)
+        assert len(x.shape) == 2 
+
+        # B,T -> B,T,H
+        encoder_out = self.encoder(x)
+
+        # B,T -> B,T,H
+        decoder_out = self.decoder(targets, encoder_out)
+        return decoder_out
