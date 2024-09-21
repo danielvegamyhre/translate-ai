@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as f
 from math import sqrt
 
-from .encoder import MultiHeadSelfAttention, FeedForward
+from encoder import MultiHeadSelfAttention, FeedForward
 
 class Decoder(nn.Module):
     def __init__(self, 
@@ -19,18 +19,24 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.position_embedding = nn.Embedding(max_output_tokens, embed_dim)
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
-        self.layers = nn.Sequential(
-            *[DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim) for _ in range(num_layers)]
+        self.layers = nn.ModuleList(
+            [DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim) for _ in range(num_layers)]
         )
+        self.linear = nn.Linear(d_model, vocab_size)
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # (B,T) -> (B,T,C)
-        pos_embed = self.position_embedding(torch.arange(len(x)))
+        B, T = x.shape
+        pos_embed = self.position_embedding(torch.arange(T))
         tok_embed =  + self.token_embedding(x)
 
-        # (B,T,C) -> (B,T,C)
-        out = self.layers(tok_embed + pos_embed, encoder_out)
-        return out
+        # (B,T,C) -> (B,T,H)
+        x = tok_embed + pos_embed
+        for layer in self.layers:
+            x = layer(x, encoder_out)
+        # (B,T,H) -> (B,T,output_vocab_size)
+        x = self.linear(x)
+        return x
 
 class DecoderLayer(nn.Module):
     def __init__(self,
@@ -45,19 +51,17 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # B,T,C -> B,T,H
-        x = f.layer_norm(x + self.masked_mha(x))
+        x = f.layer_norm(x + self.masked_mha(x), x.shape)
         # B,T,H -> B,T,H
-        x = f.layer_norm(x + self.mh_cross_attention(x, encoder_out))
+        x = f.layer_norm(x + self.mh_cross_attention(x, encoder_out), x.shape)
         # B,T,H -> B,T,H
-        x = f.layer_norm(x + self.ffwd(x))
+        x = f.layer_norm(x + self.ffwd(x), x.shape)
         return x
 
 
 class MultiHeadCrossAttention(nn.Module):
-    def __init__(self,
-                 num_heads: int,
-                 d_model: int):
-        super(MultiHeadSelfAttention, self).__init__()
+    def __init__(self, num_heads: int, d_model: int):
+        super(MultiHeadCrossAttention, self).__init__()
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
         self.heads = [

@@ -23,8 +23,9 @@ class Encoder(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (B,T) -> (B,T,C)
+        B, T = x.shape
         tok_embed = self.token_embedding(x)
-        pos_embed = self.position_embedding(torch.arange(len(x)))
+        pos_embed = self.position_embedding(torch.arange(T))
         return self.layers(tok_embed + pos_embed) 
 
 
@@ -40,10 +41,10 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # (B,T,C) -> (B,T,H)
-        x = f.layer_norm(x + self.mha(x))
+        x = f.layer_norm(x + self.mha(x), x.shape)
 
         # (B,T,H) -> (B,T,H)
-        x = f.layer_norm(x + self.ffwd(x))
+        x = f.layer_norm(x + self.ffwd(x), x.shape)
         return x
 
 class MultiHeadSelfAttention(nn.Module):
@@ -83,7 +84,7 @@ class SelfAttentionHead(nn.Module):
         self.key_layer = nn.Linear(embed_dim, head_dim)
         self.value_layer = nn.Linear(embed_dim, head_dim)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask:bool = False) -> torch.Tensor:
         # batch, token, channel dimensions
         B, T, C = x.shape
 

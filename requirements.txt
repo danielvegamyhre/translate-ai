@@ -23,19 +23,33 @@ mpmath==1.3.0
 networkx==3.3
     # via torch
 numpy==2.1.1
+    # via
+    #   -r requirements.in
+    #   pandas
+pandas==2.2.3
     # via -r requirements.in
+python-dateutil==2.9.0.post0
+    # via pandas
+pytz==2024.2
+    # via pandas
 regex==2024.9.11
     # via tiktoken
 requests==2.32.3
     # via tiktoken
+six==1.16.0
+    # via python-dateutil
 sympy==1.13.3
     # via torch
 tiktoken==0.7.0
     # via -r requirements.in
 torch==2.4.1
     # via -r requirements.in
+tqdm==4.66.5
+    # via -r requirements.in
 typing-extensions==4.12.2
     # via torch
+tzdata==2024.1
+    # via pandas
 urllib3==2.2.3
     # via requests
 

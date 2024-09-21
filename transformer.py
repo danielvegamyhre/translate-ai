@@ -4,10 +4,10 @@ import torch
 from torch import nn
 from torch.nn import functional as f
 
-from .encoder import Encoder
-from .decoder import Decoder
+from encoder import Encoder
+from decoder import Decoder
 
-class TransformerTranslator:
+class TransformerTranslator(nn.Module):
     def __init__(self,
                  input_vocab_size: int,
                  output_vocab_size: int,
