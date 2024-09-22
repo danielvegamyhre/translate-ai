@@ -45,6 +45,11 @@ def train(cfg: TrainingConfig) -> None:
         x, y = get_batch(dataset, cfg.seq_len, cfg.batch_size)
         out = model(x, y)
         pred_probs = f.softmax(out, dim=-1)
+        B,T,C = pred_probs.shape
+        # B,T,vocab_size -> B*T,vocab_size
+        pred_probs = pred_probs.view(B*T,C)
+        # B,T -> B*T
+        y = y.view(-1)
         loss = f.cross_entropy(pred_probs, y)
         print(f"step: {step}, loss: {loss}")
         optim.zero_grad()

@@ -65,7 +65,7 @@ class MultiHeadCrossAttention(nn.Module):
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
         self.heads = [
-            CrossAttentionHead(head_dim)
+            CrossAttentionHead(d_model, head_dim)
             for _ in range(num_heads)
         ]
         self.linear = nn.Linear(d_model, d_model)
@@ -78,15 +78,15 @@ class MultiHeadCrossAttention(nn.Module):
         return x
 
 class CrossAttentionHead(nn.Module):
-    def __init__(self, head_dim: int):
+    def __init__(self, d_model: int, head_dim: int):
         super(CrossAttentionHead, self).__init__()
-        self.q = nn.Linear(head_dim, head_dim)
-        self.k = nn.Linear(head_dim, head_dim)
-        self.v = nn.Linear(head_dim, head_dim)
+        self.q = nn.Linear(d_model, head_dim)
+        self.k = nn.Linear(d_model, head_dim)
+        self.v = nn.Linear(d_model, head_dim)
     
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # queries come from previous decoder layer
-        # B,T,H -> B,T,H
+        # B,T,H @ H,H -> B,T,H
         queries = self.q(x) 
 
         # keys and values come from encoder output
