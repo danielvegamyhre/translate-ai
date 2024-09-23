@@ -27,7 +27,7 @@ class Decoder(nn.Module):
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # (B,T) -> (B,T,C)
         B, T = x.shape
-        pos_embed = self.position_embedding(torch.arange(T))
+        pos_embed = self.position_embedding(torch.arange(T).to(x.device))
         tok_embed =  + self.token_embedding(x)
 
         # (B,T,C) -> (B,T,H)
@@ -64,10 +64,10 @@ class MultiHeadCrossAttention(nn.Module):
         super(MultiHeadCrossAttention, self).__init__()
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
-        self.heads = [
+        self.heads = nn.ModuleList([
             CrossAttentionHead(d_model, head_dim)
             for _ in range(num_heads)
-        ]
+        ])
         self.linear = nn.Linear(d_model, d_model)
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:

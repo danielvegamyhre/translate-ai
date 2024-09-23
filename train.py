@@ -23,9 +23,14 @@ class TrainingConfig:
     batch_size: int
     dataset_file: str
     seq_len: int
+    device: str
 
 def train(cfg: TrainingConfig) -> None:
+    device = torch.device(cfg.device)
+    print("device: ", device)
     tokenizer = tiktoken.get_encoding("cl100k_base")
+    print(f"tokenizer: tiktoken cl100k_base")
+    print(f"vocab size: {tokenizer.n_vocab}")
     dataset = EnglishToSpanishDataset(cfg.dataset_file, tokenizer)
     model = TransformerTranslator(
         input_vocab_size=tokenizer.n_vocab, 
@@ -39,19 +44,31 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=128,
         max_output_tokens=128)
     
+    model.to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
 
     for step in tqdm(range(cfg.steps)):
-        x, y = get_batch(dataset, cfg.seq_len, cfg.batch_size)
-        out = model(x, y)
+        encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
+        encoder_input = encoder_input.to(device)
+
+        # remove last token of targets to get decoder inputs
+        decoder_input = decoder_targets[:, :-1].to(device)
+        # remove first token for targets so the target seq is offset from input by 1
+        decoder_targets = decoder_targets[:, 1:].to(device)
+
+        out = model(encoder_input, decoder_input)
         pred_probs = f.softmax(out, dim=-1)
+
+        # flatten predicted probs and targets for cross entropy loss
         B,T,C = pred_probs.shape
         # B,T,vocab_size -> B*T,vocab_size
-        pred_probs = pred_probs.view(B*T,C)
+        pred_probs = pred_probs.reshape(B*T,C)
         # B,T -> B*T
-        y = y.view(-1)
-        loss = f.cross_entropy(pred_probs, y)
+        decoder_targets = decoder_targets.reshape(-1)
+
+        loss = f.cross_entropy(pred_probs, decoder_targets)
         print(f"step: {step}, loss: {loss}")
+
         optim.zero_grad()
         loss.backward()
         optim.step()
@@ -76,6 +93,7 @@ if __name__ == '__main__':
     argparser.add_argument("--batch-size", type=int, default=32) 
     argparser.add_argument("--dataset-file", type=str, required=True)
     argparser.add_argument("--seq-len", type=int, default=128)
+    argparser.add_argument("--device", type=str, default="cpu")
     args = argparser.parse_args()
     cfg = TrainingConfig(
         steps=args.steps,
@@ -86,5 +104,6 @@ if __name__ == '__main__':
         batch_size=args.batch_size,
         dataset_file=args.dataset_file,
         seq_len=args.seq_len,
+        device=args.device,
     )
     train(cfg)

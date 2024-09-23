@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         # (B,T) -> (B,T,C)
         B, T = x.shape
         tok_embed = self.token_embedding(x)
-        pos_embed = self.position_embedding(torch.arange(T))
+        pos_embed = self.position_embedding(torch.arange(T).to(x.device))
         return self.layers(tok_embed + pos_embed) 
 
 
@@ -56,10 +56,10 @@ class MultiHeadSelfAttention(nn.Module):
         super(MultiHeadSelfAttention, self).__init__()
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
-        self.heads = [
+        self.heads = nn.ModuleList([
             SelfAttentionHead(embed_dim, head_dim, mask)
             for _ in range(num_heads)
-        ]
+        ])
         self.linear = nn.Linear(d_model, d_model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
