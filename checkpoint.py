@@ -4,10 +4,7 @@ import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
 
-from train import TrainingConfig
-
-def save_checkpoint(path: str, step: int, cfg: TrainingConfig, model: nn.Module, optim: Optimizer):
-    import pdb; pdb.set_trace()
+def save_checkpoint(path: str, step: int, cfg, model: nn.Module, optim: Optimizer):
     print(f'checkpointing at step {step}')
     torch.save({
             'step': step,

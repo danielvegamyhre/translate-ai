@@ -19,7 +19,20 @@ class TransformerTranslator(nn.Module):
                  ffwd_dim: int = 2048,
                  max_seq_len: int = 512,
                  max_output_tokens: int = 1000):
+        
         super(TransformerTranslator, self).__init__()
+        
+        self.input_vocab_size = input_vocab_size
+        self.output_vocab_size = output_vocab_size
+        self.embed_dim = embed_dim
+        self.d_model = d_model
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
+        self.num_attention_heads = num_attention_heads
+        self.ffwd_dim = ffwd_dim
+        self.max_seq_len = max_seq_len
+        self.max_output_tokens = max_output_tokens 
+        
         self.encoder = Encoder(num_encoder_layers, 
                                input_vocab_size, 
                                embed_dim, 
@@ -27,6 +40,7 @@ class TransformerTranslator(nn.Module):
                                max_seq_len, 
                                num_attention_heads, 
                                ffwd_dim)
+        
         self.decoder = Decoder(output_vocab_size,
                                num_decoder_layers,
                                max_output_tokens,
@@ -34,6 +48,7 @@ class TransformerTranslator(nn.Module):
                                embed_dim,
                                d_model,
                                ffwd_dim)
+        
         self.apply(self._init_weights)
         
     def _init_weights(self, module):
