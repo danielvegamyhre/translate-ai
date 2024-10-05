@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from transformer import TransformerTranslator
 from dataset import EnglishToSpanishDataset
-
+from checkpoint import save_checkpoint, load_checkpoint
 
 @dataclass
 class TrainingConfig:
@@ -24,6 +24,8 @@ class TrainingConfig:
     dataset_file: str
     seq_len: int
     device: str
+    save_checkpoint: str
+    load_checkpoint: str
 
 def train(cfg: TrainingConfig) -> None:
     device = torch.device(cfg.device)
@@ -47,7 +49,15 @@ def train(cfg: TrainingConfig) -> None:
     model.to(device)
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
 
-    for step in tqdm(range(cfg.steps)):
+    # load checkpoint if specified
+    curr_step = 0
+    if cfg.load_checkpoint:
+        checkpoint = load_checkpoint(cfg.load_checkpoint)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optim.load_state_dict(checkpoint['optimizer_state_dict'])
+        curr_step = checkpoint['step']
+
+    for step in tqdm(range(curr_step, cfg.steps)):
         encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
         encoder_input = encoder_input.to(device)
 
@@ -72,6 +82,11 @@ def train(cfg: TrainingConfig) -> None:
         optim.zero_grad()
         loss.backward()
         optim.step()
+    
+    # save checkpoint if specified
+    if cfg.save_checkpoint:
+        save_checkpoint(cfg.save_checkpoint, step, cfg, model, optim)
+
 
 def get_batch(dataset: Dataset, seq_len: int = 8, batch_size: int = 32) -> tuple[torch.Tensor, torch.Tensor]:
     # get one random index per batch
@@ -82,6 +97,7 @@ def get_batch(dataset: Dataset, seq_len: int = 8, batch_size: int = 32) -> tuple
         x.append(xb)
         y.append(yb)
     return torch.stack(x), torch.stack(y)
+
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
@@ -94,7 +110,10 @@ if __name__ == '__main__':
     argparser.add_argument("--dataset-file", type=str, required=True)
     argparser.add_argument("--seq-len", type=int, default=128)
     argparser.add_argument("--device", type=str, default="cpu")
+    argparser.add_argument("--load-checkpoint", type=str)
+    argparser.add_argument("--save-checkpoint", type=str)
     args = argparser.parse_args()
+
     cfg = TrainingConfig(
         steps=args.steps,
         learning_rate=args.learning_rate,
@@ -105,5 +124,7 @@ if __name__ == '__main__':
         dataset_file=args.dataset_file,
         seq_len=args.seq_len,
         device=args.device,
+        load_checkpoint=args.load_checkpoint,
+        save_checkpoint=args.save_checkpoint,
     )
     train(cfg)
