@@ -43,10 +43,10 @@ def train(cfg: TrainingConfig) -> None:
     print(f"tokenizer: tiktoken cl100k_base")
     print(f"vocab size: {tokenizer.n_vocab}")
 
-    vocab_size = tokenizer.max_token_value + 3 # +3 for BOS, EOS, padding tokens
-    bos_token = vocab_size - 1
-    eos_token = vocab_size - 2
-    pad_token = vocab_size - 3
+    vocab_size = tokenizer.n_vocab + 3 # +3 for BOS, EOS, PAD tokens
+    pad_token = vocab_size - 1
+    bos_token = vocab_size - 2
+    eos_token = vocab_size - 3
 
     # initialize dataset
     dataset = EnglishToSpanishDataset(
@@ -95,9 +95,8 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            print(f"Epoch: {epoch}")
-            total_train_loss = 0.0
             for step, (encoder_inputs, decoder_targets) in tqdm(enumerate(train_loader)):
+
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoder_inputs.to(device)
 
@@ -119,8 +118,7 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
                 
                 loss = f.cross_entropy(logits, decoder_targets)
-                total_train_loss += loss.item()
-                print(f"step: {step}, loss: {loss}")
+                print(f"loss: {loss}")
 
                 optim.zero_grad(set_to_none=True)
                 loss.backward()
@@ -145,7 +143,7 @@ def train(cfg: TrainingConfig) -> None:
                 # save checkpoint if specified
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
-                    save_checkpoint(cfg.save_checkpoint, step, cfg, model, optim)
+                    save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
     # for faster development iteration loop.

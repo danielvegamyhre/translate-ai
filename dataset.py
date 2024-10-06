@@ -25,7 +25,7 @@ class EnglishToSpanishDataset(Dataset):
         ]
 
         spanish_tokenized_lines = [
-            torch.tensor([bos_token] + tokenizer.encode(line.strip()) + [eos_token])
+            torch.tensor(tokenizer.encode(line.strip()))
             for line in df['spanish']
         ]
 
