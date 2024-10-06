@@ -41,8 +41,21 @@ def train(cfg: TrainingConfig) -> None:
     print(f"tokenizer: tiktoken cl100k_base")
     print(f"vocab size: {tokenizer.n_vocab}")
 
+    # initialize model
+
+    vocab_size = tokenizer.max_token_value + 3 # +3 for BOS, EOS, padding tokens
+    bos_token = vocab_size - 1
+    eos_token = vocab_size - 2
+    pad_token = vocab_size - 3
+
     # initialize dataset
-    dataset = EnglishToSpanishDataset(cfg.dataset_file, tokenizer)
+    dataset = EnglishToSpanishDataset(
+        cfg.dataset_file, 
+        tokenizer, 
+        padding_token=pad_token,
+        bos_token=bos_token,
+        eos_token=eos_token)
+    
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
@@ -51,11 +64,10 @@ def train(cfg: TrainingConfig) -> None:
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
-    # initialize model
     d_model = 512
     model = TransformerTranslator(
-        input_vocab_size=tokenizer.n_vocab, 
-        output_vocab_size=tokenizer.n_vocab,
+        input_vocab_size=vocab_size, 
+        output_vocab_size=vocab_size,
         embed_dim=512,
         d_model=d_model,
         num_encoder_layers=cfg.num_layers,
@@ -65,9 +77,11 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=128,
         max_output_tokens=128).to(device)
 
+
+
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
-    warmup_steps = 4000
+    warmup_steps = 512
     lr_scheduler = NoamLR(optim, warmup_steps)
 
     # load checkpoint if specified

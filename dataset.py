@@ -10,24 +10,32 @@ class TokenizerInterface(Protocol):
         pass
 
 class EnglishToSpanishDataset(Dataset):
-    def __init__(self, file_path: str, tokenizer: TokenizerInterface):
+    def __init__(self, 
+                 file_path: str, 
+                 tokenizer: TokenizerInterface, 
+                 padding_token=0,
+                 bos_token=1,
+                 eos_token=2):
+        
         df = pd.read_csv(file_path)
-        # tokenize inputs
+        
         english_tokenized_lines = [
-            torch.tensor(tokenizer.encode(line.strip()))
+            torch.tensor([bos_token] + tokenizer.encode(line.strip()) + [eos_token])
             for line in df['english'] 
         ]
+
         spanish_tokenized_lines = [
-            torch.tensor(tokenizer.encode(line.strip()))
+            torch.tensor([bos_token] + tokenizer.encode(line.strip()) + [eos_token])
             for line in df['spanish']
         ]
+
         # pad sequences so they all have the same length
         self.X = torch.stack([
-            pad_sequence(english_tokenized_lines, batch_first=True, padding_value=0)
+            pad_sequence(english_tokenized_lines, batch_first=True, padding_value=padding_token)
         ]).squeeze()
 
         self.Y = torch.stack([
-            pad_sequence(spanish_tokenized_lines, batch_first=True, padding_value=0)
+            pad_sequence(spanish_tokenized_lines, batch_first=True, padding_value=padding_token)
         ]).squeeze()
 
     def __len__(self):
