@@ -117,7 +117,7 @@ def train(cfg: TrainingConfig) -> None:
                 logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
                 
-                loss = f.cross_entropy(logits, decoder_targets)
+                loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
                 print(f"loss: {loss}")
 
                 optim.zero_grad(set_to_none=True)
@@ -132,8 +132,8 @@ def train(cfg: TrainingConfig) -> None:
                 if is_eval_step:
                     print("Estimating loss")
                     model.eval()
-                    avg_train_loss = estimate_loss(model, train_loader)
-                    avg_val_loss = estimate_loss(model, val_loader)
+                    avg_train_loss = estimate_loss(model, train_loader, ignore_index=pad_token)
+                    avg_val_loss = estimate_loss(model, val_loader, ignore_index=pad_token)
                     train_losses.append(avg_train_loss)
                     val_losses.append(avg_val_loss)
                     print(f"Train loss: {avg_train_loss}")
@@ -157,6 +157,7 @@ def train(cfg: TrainingConfig) -> None:
 @torch.no_grad()
 def estimate_loss(model: nn.Module, 
                   dataloader: torch.utils.data.DataLoader,
+                  ignore_index: int = 0,
                   eval_iters: int = 10):
     """Returns the average loss after `eval_iters` iterations using the given model and dataloader."""
     device = next(model.parameters()).device
@@ -185,7 +186,7 @@ def estimate_loss(model: nn.Module,
         logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
         decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
         
-        loss = f.cross_entropy(logits, decoder_targets)
+        loss = f.cross_entropy(logits, decoder_targets, ignore_index=ignore_index)
         losses[i] = loss
     return losses.mean()
 
