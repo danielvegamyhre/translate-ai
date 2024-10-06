@@ -4,10 +4,10 @@ import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
 
-def save_checkpoint(path: str, epoch: int, cfg, model: nn.Module, optim: Optimizer):
-    print(f'checkpointing at epoch {epoch}')
+def save_checkpoint(path: str, step: int, cfg, model: nn.Module, optim: Optimizer):
+    print(f'checkpointing at epoch {step}')
     torch.save({
-            'epoch': epoch,
+            'step': step,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optim.state_dict(),
             'config': cfg,

@@ -41,8 +41,6 @@ def train(cfg: TrainingConfig) -> None:
     print(f"tokenizer: tiktoken cl100k_base")
     print(f"vocab size: {tokenizer.n_vocab}")
 
-    # initialize model
-
     vocab_size = tokenizer.max_token_value + 3 # +3 for BOS, EOS, padding tokens
     bos_token = vocab_size - 1
     eos_token = vocab_size - 2
@@ -64,6 +62,7 @@ def train(cfg: TrainingConfig) -> None:
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
+    # initialize model
     d_model = 512
     model = TransformerTranslator(
         input_vocab_size=vocab_size, 
@@ -94,86 +93,103 @@ def train(cfg: TrainingConfig) -> None:
 
     # training loop
     train_losses, val_losses = [], []
-    model.train()
-    for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-        print(f"Epoch: {epoch}")
-        total_train_loss = 0.0
-        for step, (encoder_inputs, decoder_targets) in tqdm(enumerate(train_loader)):
-            # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
-            encoder_input = encoder_inputs.to(device)
+    try:
+        model.train()
+        for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
+            print(f"Epoch: {epoch}")
+            total_train_loss = 0.0
+            for step, (encoder_inputs, decoder_targets) in tqdm(enumerate(train_loader)):
+                # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
+                encoder_input = encoder_inputs.to(device)
 
-            # remove last token of targets to get decoder inputs
-            decoder_input = decoder_targets[:, :-1].to(device)
+                # remove last token of targets to get decoder inputs
+                decoder_input = decoder_targets[:, :-1].to(device)
 
-            # remove first token for targets so the target seq is offset from input by 1
-            decoder_targets = decoder_targets[:, 1:].to(device)
-            if cfg.debug:
-                print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
+                # remove first token for targets so the target seq is offset from input by 1
+                decoder_targets = decoder_targets[:, 1:].to(device)
+                if cfg.debug:
+                    print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
 
-            logits = model(encoder_input, decoder_input)
-            if cfg.debug:
-                print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
+                logits = model(encoder_input, decoder_input)
+                if cfg.debug:
+                    print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
 
-            # flatten predicted probs and targets for cross entropy loss
-            B,T,C = logits.shape
-            logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
-            decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
-            
-            loss = f.cross_entropy(logits, decoder_targets)
-            total_train_loss += loss.item()
-            print(f"step: {step}, loss: {loss}")
+                # flatten predicted probs and targets for cross entropy loss
+                B,T,C = logits.shape
+                logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
+                decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
+                
+                loss = f.cross_entropy(logits, decoder_targets)
+                total_train_loss += loss.item()
+                print(f"step: {step}, loss: {loss}")
 
-            optim.zero_grad(set_to_none=True)
-            loss.backward()
-            optim.step()
+                optim.zero_grad(set_to_none=True)
+                loss.backward()
+                optim.step()
 
-            # after each step, do a lr scheduler step
-            lr_scheduler.step()
-        
-        avg_train_loss = total_train_loss / len(train_dataset)
-        train_losses.append(avg_train_loss)
-        print(f"Average train loss: {avg_train_loss}")
+                # after each step, do a lr scheduler step
+                lr_scheduler.step()
 
-        # validation loop
-        print(f"Estimating validation loss")
-        model.eval()
-        total_val_loss = 0.0
-        for encoder_inputs, decoder_targets in val_loader:
-            # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
-            encoder_input = encoder_inputs.to(device)
+                # estimate loss periodically
+                is_eval_step = step > 0 and step % cfg.eval_interval == 0
+                if is_eval_step:
+                    print("Estimating loss")
+                    model.eval()
+                    avg_train_loss = estimate_loss(model, train_loader)
+                    avg_val_loss = estimate_loss(model, val_loader)
+                    train_losses.append(avg_train_loss)
+                    val_losses.append(avg_val_loss)
+                    print(f"Train loss: {avg_train_loss}")
+                    print(f"Validation loss: {avg_val_loss}")
+                    model.train()
 
-            # remove last token of targets to get decoder inputs
-            decoder_input = decoder_targets[:, :-1].to(device)
+                # save checkpoint if specified
+                is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
+                if cfg.save_checkpoint and is_checkpoint_step:
+                    save_checkpoint(cfg.save_checkpoint, step, cfg, model, optim)
 
-            # remove first token for targets so the target seq is offset from input by 1
-            decoder_targets = decoder_targets[:, 1:].to(device)
-            if cfg.debug:
-                print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
-
-            logits = model(encoder_input, decoder_input)
-            if cfg.debug:
-                print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
-
-            # flatten predicted probs and targets for cross entropy loss
-            B,T,C = logits.shape
-            logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
-            decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
-            
-            val_loss = f.cross_entropy(logits, decoder_targets)
-            total_val_loss += val_loss.item()
-        
-        avg_val_loss = total_val_loss / len(val_dataset)      
-        val_losses.append(avg_val_loss)
-        print(f"Average validation loss: {avg_val_loss}")
-
-        # save checkpoint if specified
-        if cfg.save_checkpoint:
-            save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
-
+    # catch ctrl+C to allow us to interrupt training early and plot learning curves,
+    # for faster development iteration loop.
+    except KeyboardInterrupt:
+        pass
     # plot learning curves if specified
     if cfg.plot_learning_curves:
         plot_learning_curves(train_losses, val_losses)
 
+@torch.no_grad()
+def estimate_loss(model: nn.Module, 
+                  dataloader: torch.utils.data.DataLoader,
+                  eval_iters: int = 10):
+    """Returns the average loss after `eval_iters` iterations using the given model and dataloader."""
+    device = next(model.parameters()).device
+    losses = torch.zeros(eval_iters)
+    for i, (encoder_inputs, decoder_targets) in enumerate(dataloader):
+        if i == eval_iters:
+            break
+
+        # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
+        encoder_input = encoder_inputs.to(device)
+
+        # remove last token of targets to get decoder inputs
+        decoder_input = decoder_targets[:, :-1].to(device)
+
+        # remove first token for targets so the target seq is offset from input by 1
+        decoder_targets = decoder_targets[:, 1:].to(device)
+        if cfg.debug:
+            print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
+
+        logits = model(encoder_input, decoder_input)
+        if cfg.debug:
+            print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
+
+        # flatten predicted probs and targets for cross entropy loss
+        B,T,C = logits.shape
+        logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
+        decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
+        
+        loss = f.cross_entropy(logits, decoder_targets)
+        losses[i] = loss
+    return losses.mean()
 
 if __name__ == '__main__':
     argparser = ArgumentParser()

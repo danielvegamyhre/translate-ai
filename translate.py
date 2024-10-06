@@ -19,7 +19,7 @@ def translate(english_query: str,
               bos_token: int = 1, 
               eos_token: int = 2) -> str:
     '''Translate English input sequence to Spanish.'''
-    
+
     tokenizer = tiktoken.get_encoding("cl100k_base")
     print(f"tokenizer: tiktoken cl100k_base")
     input_tokens = torch.tensor(tokenizer.encode(english_query)).unsqueeze(0) # (B,T) where B=1
@@ -61,7 +61,7 @@ def translate(english_query: str,
             next_token = torch.argmax(decoder_out, dim=-1).unsqueeze(0) # (B,T) where B=1 and T=1
             pred_tokens = torch.cat([pred_tokens, next_token], dim=-1)  # (B,T) where B=1 and T=T+1
             # if next token is padding token, end translation
-            if next_token.item() == padding_token:
+            if next_token.item() == pad_token:
                 break
     
     # decoder predicted tokens into spanish
