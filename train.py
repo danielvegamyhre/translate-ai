@@ -19,8 +19,10 @@ from scheduler import NoamLR
 class TrainingConfig:
     epochs: int
     learning_rate: float
+    warmup_steps: int
     num_layers: int
     eval_interval: int
+    eval_iters: int
     checkpoint_interval: int
     batch_size: int
     dataset_file: str
@@ -76,12 +78,9 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=128,
         max_output_tokens=128).to(device)
 
-
-
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
-    warmup_steps = 512
-    lr_scheduler = NoamLR(optim, warmup_steps)
+    lr_scheduler = NoamLR(optim, cfg.warmup_steps)
 
     # load checkpoint if specified
     curr_epoch = 0
@@ -131,7 +130,7 @@ def train(cfg: TrainingConfig) -> None:
                 lr_scheduler.step()
 
                 # estimate loss periodically
-                is_eval_step = step > 0 and step % cfg.eval_interval == 0
+                is_eval_step = step % cfg.eval_interval == 0
                 if is_eval_step:
                     print("Estimating loss")
                     model.eval()
@@ -152,6 +151,7 @@ def train(cfg: TrainingConfig) -> None:
     # for faster development iteration loop.
     except KeyboardInterrupt:
         pass
+
     # plot learning curves if specified
     if cfg.plot_learning_curves:
         plot_learning_curves(train_losses, val_losses)
@@ -195,8 +195,10 @@ if __name__ == '__main__':
     argparser = ArgumentParser()
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--learning-rate", type=float, default=1e-3)
+    argparser.add_argument("--warmup-steps", type=int, default=100)
     argparser.add_argument("--num-layers", type=int, default=6)
     argparser.add_argument("--eval-interval", type=int, default=100)
+    argparser.add_argument("--eval-iters", type=int, default=10)
     argparser.add_argument("--checkpoint-interval", type=int, default=100)  
     argparser.add_argument("--batch-size", type=int, default=32) 
     argparser.add_argument("--dataset-file", type=str, required=True)
@@ -211,9 +213,11 @@ if __name__ == '__main__':
     cfg = TrainingConfig(
         epochs=args.epochs,
         learning_rate=args.learning_rate,
+        warmup_steps=args.warmup_steps,
         num_layers=args.num_layers,
         eval_interval=args.eval_interval,
-        checkpoint_interval=args.eval_interval,
+        eval_iters=args.eval_iters,
+        checkpoint_interval=args.checkpoint_interval,
         batch_size=args.batch_size,
         dataset_file=args.dataset_file,
         seq_len=args.seq_len,
