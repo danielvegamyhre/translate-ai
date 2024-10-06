@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as f
 from torch.utils.data import Dataset, DataLoader, random_split
-from torch.optim.lr_scheduler import LambdaLR
+from torch.optim.lr_scheduler import NoamLR
 from dataclasses import dataclass
 from argparse import ArgumentParser
 import tiktoken
@@ -14,6 +14,7 @@ from transformer import TransformerTranslator
 from dataset import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
+from scheduler import NoamLR
 
 @dataclass
 class TrainingConfig:
@@ -67,8 +68,8 @@ def train(cfg: TrainingConfig) -> None:
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
-    warmup_epochs = 2
-    lr_scheduler = get_noam_scheduler(optim, warmup_epochs, d_model)
+    warmup_steps = 4000
+    lr_scheduler = NoamLR(optim, warmup_steps)
 
     # load checkpoint if specified
     curr_epoch = 0
@@ -81,7 +82,7 @@ def train(cfg: TrainingConfig) -> None:
     # training loop
     train_losses, val_losses = [], []
     model.train()
-    for epoch in tqdm(range(curr_epoch, curr_epoch + cfg.epochs)):
+    for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
         print(f"Epoch: {epoch}")
         total_train_loss = 0.0
         for step, (encoder_inputs, decoder_targets) in tqdm(enumerate(train_loader)):
@@ -112,6 +113,9 @@ def train(cfg: TrainingConfig) -> None:
             optim.zero_grad(set_to_none=True)
             loss.backward()
             optim.step()
+
+            # after each step, do a lr scheduler step
+            lr_scheduler.step()
         
         avg_train_loss = total_train_loss / len(train_dataset)
         train_losses.append(avg_train_loss)
@@ -147,10 +151,7 @@ def train(cfg: TrainingConfig) -> None:
         
         avg_val_loss = total_val_loss / len(val_dataset)      
         val_losses.append(avg_val_loss)
-        print("Average validation loss: {avg_val_loss}")
-
-        # after each epcoh, do a learning rate scheduler step 
-        lr_scheduler.step()  
+        print(f"Average validation loss: {avg_val_loss}")
 
     # save checkpoint if specified
     if cfg.save_checkpoint:
@@ -171,11 +172,25 @@ def get_batch(dataset: Dataset, seq_len: int = 8, batch_size: int = 32) -> tuple
         y.append(yb)
     return torch.stack(x), torch.stack(y)
 
-# https://arxiv.org/pdf/1706.03762
-def get_noam_scheduler(optimizer, warmup_epochs, d_model):
-    def lr_lambda(step):
-        return (d_model ** -0.5) * min((step + 1) ** -0.5, (step + 1) * (warmup_epochs ** -1.5))
-    return LambdaLR(optimizer, lr_lambda)
+class NoamLR(_LRScheduler):
+    """
+    Implements the Noam Learning rate schedule. This corresponds to increasing the learning rate
+    linearly for the first ``warmup_steps`` training steps, and decreasing it thereafter proportionally
+    to the inverse square root of the step number, scaled by the inverse square root of the
+    dimensionality of the model. Time will tell if this is just madness or it's actually important.
+    Parameters
+    ----------
+    warmup_steps: ``int``, required.
+        The number of steps to linearly increase the learning rate.
+    """
+    def __init__(self, optimizer, warmup_steps):
+        self.warmup_steps = warmup_steps
+        super().__init__(optimizer)
+
+    def get_lr(self):
+        last_epoch = max(1, self.last_epoch)
+        scale = self.warmup_steps ** 0.5 * min(last_epoch ** (-0.5), last_epoch * self.warmup_steps ** (-1.5))
+        return [base_lr * scale for base_lr in self.base_lrs]
 
 
 if __name__ == '__main__':
