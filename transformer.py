@@ -21,7 +21,7 @@ class TransformerTranslator(nn.Module):
                  max_output_tokens: int = 1000):
         
         super(TransformerTranslator, self).__init__()
-        
+
         self.input_vocab_size = input_vocab_size
         self.output_vocab_size = output_vocab_size
         self.embed_dim = embed_dim
@@ -53,11 +53,11 @@ class TransformerTranslator(nn.Module):
         
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.xavier_normal_(module.weight)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.xavier_normal_(module.weight)
 
     def forward(self, x: torch.Tensor, targets: torch.Tensor = None) -> torch.Tensor: 
         # x shape (B,T)

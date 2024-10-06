@@ -8,16 +8,26 @@ certifi==2024.8.30
     # via requests
 charset-normalizer==3.3.2
     # via requests
+contourpy==1.3.0
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
 filelock==3.16.1
     # via torch
+fonttools==4.54.1
+    # via matplotlib
 fsspec==2024.9.0
     # via torch
 idna==3.10
     # via requests
 jinja2==3.1.4
     # via torch
+kiwisolver==1.4.7
+    # via matplotlib
 markupsafe==2.1.5
     # via jinja2
+matplotlib==3.9.2
+    # via -r requirements.in
 mpmath==1.3.0
     # via sympy
 networkx==3.3
@@ -25,11 +35,21 @@ networkx==3.3
 numpy==2.1.1
     # via
     #   -r requirements.in
+    #   contourpy
+    #   matplotlib
     #   pandas
+packaging==24.1
+    # via matplotlib
 pandas==2.2.3
     # via -r requirements.in
+pillow==10.4.0
+    # via matplotlib
+pyparsing==3.1.4
+    # via matplotlib
 python-dateutil==2.9.0.post0
-    # via pandas
+    # via
+    #   matplotlib
+    #   pandas
 pytz==2024.2
     # via pandas
 regex==2024.9.11

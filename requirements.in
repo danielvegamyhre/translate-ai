@@ -3,3 +3,4 @@ torch
 tiktoken
 tqdm
 pandas
+matplotlib
