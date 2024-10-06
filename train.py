@@ -4,7 +4,6 @@ import torch
 from torch import nn
 from torch.nn import functional as f
 from torch.utils.data import Dataset, DataLoader, random_split
-from torch.optim.lr_scheduler import NoamLR
 from dataclasses import dataclass
 from argparse import ArgumentParser
 import tiktoken
@@ -153,44 +152,13 @@ def train(cfg: TrainingConfig) -> None:
         val_losses.append(avg_val_loss)
         print(f"Average validation loss: {avg_val_loss}")
 
-    # save checkpoint if specified
-    if cfg.save_checkpoint:
-        save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
+        # save checkpoint if specified
+        if cfg.save_checkpoint:
+            save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
 
     # plot learning curves if specified
     if cfg.plot_learning_curves:
         plot_learning_curves(train_losses, val_losses)
-
-
-def get_batch(dataset: Dataset, seq_len: int = 8, batch_size: int = 32) -> tuple[torch.Tensor, torch.Tensor]:
-    # get one random index per batch
-    indexes = torch.randint(len(dataset) - seq_len, (batch_size,))
-    x, y = [], []
-    for idx in indexes:
-        xb, yb = dataset[idx]
-        x.append(xb)
-        y.append(yb)
-    return torch.stack(x), torch.stack(y)
-
-class NoamLR(_LRScheduler):
-    """
-    Implements the Noam Learning rate schedule. This corresponds to increasing the learning rate
-    linearly for the first ``warmup_steps`` training steps, and decreasing it thereafter proportionally
-    to the inverse square root of the step number, scaled by the inverse square root of the
-    dimensionality of the model. Time will tell if this is just madness or it's actually important.
-    Parameters
-    ----------
-    warmup_steps: ``int``, required.
-        The number of steps to linearly increase the learning rate.
-    """
-    def __init__(self, optimizer, warmup_steps):
-        self.warmup_steps = warmup_steps
-        super().__init__(optimizer)
-
-    def get_lr(self):
-        last_epoch = max(1, self.last_epoch)
-        scale = self.warmup_steps ** 0.5 * min(last_epoch ** (-0.5), last_epoch * self.warmup_steps ** (-1.5))
-        return [base_lr * scale for base_lr in self.base_lrs]
 
 
 if __name__ == '__main__':
