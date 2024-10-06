@@ -95,16 +95,16 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            for step, (encoder_inputs, decoder_targets) in tqdm(enumerate(train_loader)):
+            for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader)):
 
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
-                encoder_input = encoder_inputs.to(device)
+                encoder_input = encoded_inputs.to(device)
 
                 # remove last token of targets to get decoder inputs
-                decoder_input = decoder_targets[:, :-1].to(device)
+                decoder_input = encoded_targets[:, :-1].to(device)
 
                 # remove first token for targets so the target seq is offset from input by 1
-                decoder_targets = decoder_targets[:, 1:].to(device)
+                decoder_targets = encoded_targets[:, 1:].to(device)
                 if cfg.debug:
                     print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
 
