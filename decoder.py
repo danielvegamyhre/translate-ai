@@ -25,7 +25,7 @@ class Decoder(nn.Module):
         )
         self.linear = nn.Linear(d_model, vocab_size)
 
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
         # (B,T) -> (B,T,C)
         B, T = x.shape
         pos_embed = self.position_embedding(torch.arange(T).to(x.device))
@@ -52,14 +52,15 @@ class DecoderLayer(nn.Module):
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.register_buffer('tril', torch.tril(torch.ones((max_seq_len, max_seq_len))))
 
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
         # B,T,C -> B,T,H
         B,T,C = x.shape
         decoder_causal_mask = (self.tril[:T, :T] == 0)
-        # (B,T) -> B,T,T
-        expanded_padding_mask = decoder_padding_mask.unsqueeze(1).expand(-1, T, -1)
+        if decoder_padding_mask is not None:
+            # (B,T) -> B,T,T
+            decoder_padding_mask = decoder_padding_mask.unsqueeze(1).expand(-1, T, -1)
         # B,T,T
-        combined_mask = expanded_padding_mask | decoder_causal_mask
+        combined_mask = (decoder_padding_mask | decoder_causal_mask) if decoder_padding_mask is not None else decoder_causal_mask
         x = f.layer_norm(x + self.masked_mha(x, combined_mask), x.shape)
         # B,T,H -> B,T,H
         x = f.layer_norm(x + self.mh_cross_attention(x, encoder_out), x.shape)

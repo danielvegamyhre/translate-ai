@@ -26,10 +26,10 @@ def translate(english_query: str, checkpoint_file: str) -> str:
     pad_token = vocab_size - 1
     bos_token = vocab_size - 2
     eos_token = vocab_size - 3
-    print(f"tokenizer: tiktoken cl100k_base")
+    print(f"tokenizer: tiktoken cl100k_base, PAD: {pad_token}, BOS: {bos_token}, EOS: {eos_token}")
 
     # (B,T) where B=1
-    input_tokens = torch.tensor([bos_token] + tokenizer.encode(english_query) + [eos_token]).unsqueeze(0).to(cfg.device) 
+    encoder_input = torch.tensor([bos_token] + tokenizer.encode(english_query) + [eos_token]).unsqueeze(0).to(cfg.device) 
 
     model = TransformerTranslator(
         input_vocab_size=vocab_size, 
@@ -44,16 +44,17 @@ def translate(english_query: str, checkpoint_file: str) -> str:
         max_output_tokens=128
     ).to(cfg.device)
 
+    # load checkpoint
     model.load_state_dict(checkpoint['model_state_dict'])
 
     # run input query through encoder to get encoder output / context
-    encoder_out = model.encoder(input_tokens)
+    encoder_padding_mask = (encoder_input == pad_token).to(cfg.device) # (B,T)
+    encoder_out = model.encoder(encoder_input, encoder_padding_mask)
 
     # run decoder one step at time auto-regressively
     with torch.no_grad():
         pred_tokens = torch.tensor([bos_token], device=cfg.device).unsqueeze(0) # (B,1) where B=1
         for _ in tqdm(range(model.max_output_tokens)):
-            
             decoder_out = model.decoder(pred_tokens, encoder_out)               # (B,T,output_vocab_size) where B=1
 
             # get latest predicted token in seq
@@ -65,7 +66,9 @@ def translate(english_query: str, checkpoint_file: str) -> str:
             # if next token is EOS token, end translation
             if next_token.item() == eos_token:
                 break
+
     import pdb; pdb.set_trace()
+
     # decoder predicted tokens into spanish
     cleaned_pred_tokens = [token for token in pred_tokens.squeeze().tolist() if token not in {bos_token, eos_token, pad_token}]
     decoded = tokenizer.decode(cleaned_pred_tokens)

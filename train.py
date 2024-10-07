@@ -40,13 +40,12 @@ def train(cfg: TrainingConfig) -> None:
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
-    print(f"tokenizer: tiktoken cl100k_base")
-    print(f"vocab size: {tokenizer.n_vocab}")
-
     vocab_size = tokenizer.n_vocab + 3 # +3 for BOS, EOS, PAD tokens
     pad_token = vocab_size - 1
     bos_token = vocab_size - 2
     eos_token = vocab_size - 3
+    print(f"tokenizer: tiktoken cl100k_base, PAD: {pad_token}, BOS: {bos_token}, EOS: {eos_token}")
+    print(f"vocab size: {vocab_size}")
 
     # initialize dataset
     dataset = EnglishToSpanishDataset(
@@ -123,7 +122,8 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
                 
                 loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
-                print(f"loss: {loss}")
+                if cfg.debug:
+                    print(f"epoch: {epoch}, step: {step}, loss: {loss}")
 
                 optim.zero_grad(set_to_none=True)
                 loss.backward()

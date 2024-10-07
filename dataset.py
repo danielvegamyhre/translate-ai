@@ -13,9 +13,9 @@ class EnglishToSpanishDataset(Dataset):
     def __init__(self, 
                  file_path: str, 
                  tokenizer: TokenizerInterface, 
-                 padding_token=0,
-                 bos_token=1,
-                 eos_token=2):
+                 padding_token: int,
+                 bos_token: int,
+                 eos_token: int):
         
         df = pd.read_csv(file_path)
         
