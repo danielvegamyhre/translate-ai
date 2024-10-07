@@ -47,7 +47,8 @@ class TransformerTranslator(nn.Module):
                                num_attention_heads, 
                                embed_dim,
                                d_model,
-                               ffwd_dim)
+                               ffwd_dim,
+                               max_seq_len)
         
         self.apply(self._init_weights)
         
@@ -59,13 +60,17 @@ class TransformerTranslator(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.xavier_normal_(module.weight)
 
-    def forward(self, x: torch.Tensor, targets: torch.Tensor = None) -> torch.Tensor: 
+    def forward(self, 
+                encoder_input: torch.Tensor, 
+                decoder_input: torch.Tensor,
+                encoder_padding_mask: torch.Tensor = None,
+                decoder_padding_mask: torch.Tensor = None) -> torch.Tensor: 
         # x shape (B,T)
-        assert len(x.shape) == 2 
+        assert len(encoder_input.shape) == 2 
 
         # B,T -> B,T,H
-        encoder_out = self.encoder(x)
+        encoder_out = self.encoder(encoder_input, encoder_padding_mask)
 
         # B,T,vocab_size
-        decoder_out = self.decoder(targets, encoder_out)
+        decoder_out = self.decoder(decoder_input, encoder_out, decoder_padding_mask)
         return decoder_out

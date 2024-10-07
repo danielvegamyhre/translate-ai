@@ -17,16 +17,24 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.position_embedding = nn.Embedding(max_seq_len, embed_dim)
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
-        self.layers = nn.Sequential(
-            *[EncoderLayer(embed_dim, d_model, num_attention_heads, ffwd_dim) for _ in range(num_layers)]
-        )
+        self.layers = nn.ModuleList([
+            EncoderLayer(embed_dim, d_model, num_attention_heads, ffwd_dim)
+            for _ in range(num_layers)
+        ])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_padding_mask: torch.Tensor) -> torch.Tensor:
         # (B,T) -> (B,T,C)
         B, T = x.shape
         tok_embed = self.token_embedding(x)
         pos_embed = self.position_embedding(torch.arange(T).to(x.device))
-        return self.layers(tok_embed + pos_embed) 
+        # B,T,C -> B,T,C
+        out = tok_embed + pos_embed
+        # B,T -> B,1,T so it can be broadcasted across attention scores
+        encoder_padding_mask = encoder_padding_mask.unsqueeze(1)
+        for layer in self.layers:
+            # B,T,C -> B,T,C
+            out = layer(out, encoder_padding_mask)
+        return out
 
 
 class EncoderLayer(nn.Module):
@@ -39,9 +47,9 @@ class EncoderLayer(nn.Module):
         self.ffwd = FeedForward(d_model, ffwd_dim)
         self.mha = MultiHeadSelfAttention(num_attention_heads, embed_dim, d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_padding_mask: torch.Tensor) -> torch.Tensor:
         # (B,T,C) -> (B,T,H)
-        x = f.layer_norm(x + self.mha(x), x.shape)
+        x = f.layer_norm(x + self.mha(x, encoder_padding_mask), x.shape)
 
         # (B,T,H) -> (B,T,H)
         x = f.layer_norm(x + self.ffwd(x), x.shape)
@@ -51,22 +59,21 @@ class MultiHeadSelfAttention(nn.Module):
     def __init__(self, 
                  num_heads: int,
                  embed_dim: int,
-                 d_model: int,
-                 mask: bool = False):
+                 d_model: int):
         super(MultiHeadSelfAttention, self).__init__()
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
         self.heads = nn.ModuleList([
-            SelfAttentionHead(embed_dim, head_dim, mask)
+            SelfAttentionHead(embed_dim, head_dim)
             for _ in range(num_heads)
         ])
         self.linear = nn.Linear(d_model, d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         # head(x) => (B,T,head_size)
         # concat them all along head_size dim -> (B,T,H)
         # since H = head_size * num_heads 
-        x = torch.cat([head(x) for head in self.heads], dim=-1)
+        x = torch.cat([head(x, mask) for head in self.heads], dim=-1)
         # (B,T,H) -> B,T,H
         x = self.linear(x)
         return x
@@ -77,14 +84,13 @@ class SelfAttentionHead(nn.Module):
     head_dim: total hidden dimension size divided by the number of attention heads.'''
     def __init__(self,
                  embed_dim: int = 128,
-                 head_dim: int = 128,
-                 mask: bool = False):
+                 head_dim: int = 128):
         super(SelfAttentionHead, self).__init__()
         self.query_layer = nn.Linear(embed_dim, head_dim)
         self.key_layer = nn.Linear(embed_dim, head_dim)
         self.value_layer = nn.Linear(embed_dim, head_dim)
     
-    def forward(self, x: torch.Tensor, mask:bool = False) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         # batch, token, channel dimensions
         B, T, C = x.shape
 
@@ -95,25 +101,21 @@ class SelfAttentionHead(nn.Module):
         keys = self.key_layer(x)
 
         # (B,T,H) @ (B,H,T) = (B,T,T)
-        similarities = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
+        scores = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
 
-        # optionally mask tokens in subsequent positions (so token at t[i] can only depend on t[:i]
-        # for predictions)
-        if mask:
-            # B,T,T with bottom left triangle the same but top right triangle set to -inf.
-            # we can use this to prevent the decoder from attending to future tokens it should
-            # not have access to and preserve the auto-regressive property.
-            mask = torch.tril(torch.ones(T,T))
-            similarities = similarities.masked_fill(mask, -float('inf'))
+        # optionally mask tokens (e.g., mask padding tokens to prevent model from attending
+        # to them, or mask tokens temporally ahead of each token to preserve autoregressive property).
+        if mask is not None:
+            scores = scores.masked_fill(mask, -float('inf'))
 
         # element-wise, shape stays same
-        weighted_similarities = torch.softmax(similarities, dim=-1)
+        weighted_scores = torch.softmax(scores, dim=-1)
 
         # (B,T,C) @ (C,H) = (B,T,H) -> (batch, token, hidden dimension)
         values = self.value_layer(x)
 
         # (B,T,T) @ (B,T,H) = B,T,H
-        out = weighted_similarities @ values
+        out = weighted_scores @ values
         return out
 
 class FeedForward(nn.Module):

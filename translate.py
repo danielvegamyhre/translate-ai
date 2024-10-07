@@ -65,7 +65,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
             # if next token is EOS token, end translation
             if next_token.item() == eos_token:
                 break
-    
+    import pdb; pdb.set_trace()
     # decoder predicted tokens into spanish
     cleaned_pred_tokens = [token for token in pred_tokens.squeeze().tolist() if token not in {bos_token, eos_token, pad_token}]
     decoded = tokenizer.decode(cleaned_pred_tokens)

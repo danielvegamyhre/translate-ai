@@ -95,8 +95,7 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader)):
-
+            for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoded_inputs.to(device)
 
@@ -108,9 +107,15 @@ def train(cfg: TrainingConfig) -> None:
                 if cfg.debug:
                     print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
 
-                logits = model(encoder_input, decoder_input)
+                # create padding masks to ensure model doesn't attend to padding tokens
+                encoder_padding_mask = (encoder_input == pad_token).to(device) # (B,T)
+                decoder_padding_mask = (decoder_input == pad_token).to(device) # (B,T)
+
+                logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
                 if cfg.debug:
+                    import pdb; pdb.set_trace()
                     print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
+                    print('logits argmax', torch.argmax(logits, dim=-1))
 
                 # flatten predicted probs and targets for cross entropy loss
                 B,T,C = logits.shape
@@ -165,8 +170,7 @@ def estimate_loss(model: nn.Module,
     for i, (encoder_inputs, decoder_targets) in enumerate(dataloader):
         if i == eval_iters:
             break
-
-        # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
+        
         encoder_input = encoder_inputs.to(device)
 
         # remove last token of targets to get decoder inputs
@@ -174,10 +178,16 @@ def estimate_loss(model: nn.Module,
 
         # remove first token for targets so the target seq is offset from input by 1
         decoder_targets = decoder_targets[:, 1:].to(device)
+
         if cfg.debug:
             print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
 
-        logits = model(encoder_input, decoder_input)
+        # create padding masks to ensure model doesn't attend to padding tokens
+        encoder_padding_mask = (encoder_input == ignore_index).to(device) # (B,T)
+        decoder_padding_mask = (decoder_input == ignore_index).to(device) # (B,T)
+
+        logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
+
         if cfg.debug:
             print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
 
