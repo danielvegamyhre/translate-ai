@@ -1,2 +1,12 @@
 #!/bin/bash
-python3 train.py --dataset-file=data/data.csv --device=mps --epochs 1 --learning-rate .01 --save-checkpoint checkpoints/chkpt.pt --eval-interval 1 --checkpoint-interval 1 --batch-size 2 --plot-learning-curves
+#!/bin/bash
+python3 train.py \
+    --dataset-file=data/data.csv \
+    --device=cuda \
+    --epochs 1 \
+    --learning-rate .001 \
+    --save-checkpoint checkpoints/chkpt.pt \
+    --eval-interval 100 \
+    --checkpoint-interval 100 \
+    --batch-size 64 \
+    --plot-learning-curves
