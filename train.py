@@ -40,6 +40,7 @@ def train(cfg: TrainingConfig) -> None:
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
+
     vocab_size = tokenizer.n_vocab + 3 # +3 for BOS, EOS, PAD tokens
     pad_token = vocab_size - 1
     bos_token = vocab_size - 2
@@ -76,6 +77,9 @@ def train(cfg: TrainingConfig) -> None:
         ffwd_dim=2048,
         max_seq_len=128,
         max_output_tokens=128).to(device)
+    
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"model parameters: {total_params}")
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
@@ -111,6 +115,7 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_padding_mask = (decoder_input == pad_token).to(device) # (B,T)
 
                 logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
+
                 if cfg.debug:
                     import pdb; pdb.set_trace()
                     print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())

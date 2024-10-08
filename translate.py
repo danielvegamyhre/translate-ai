@@ -46,6 +46,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
 
     # load checkpoint
     model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
 
     # run input query through encoder to get encoder output / context
     encoder_padding_mask = (encoder_input == pad_token).to(cfg.device) # (B,T)
@@ -66,8 +67,6 @@ def translate(english_query: str, checkpoint_file: str) -> str:
             # if next token is EOS token, end translation
             if next_token.item() == eos_token:
                 break
-
-    import pdb; pdb.set_trace()
 
     # decoder predicted tokens into spanish
     cleaned_pred_tokens = [token for token in pred_tokens.squeeze().tolist() if token not in {bos_token, eos_token, pad_token}]
