@@ -82,7 +82,7 @@ def train(cfg: TrainingConfig) -> None:
         num_decoder_layers=cfg.num_layers,
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
-        max_seq_len=128,
+        max_seq_len=cfg.seq_len,
         max_output_tokens=128).to(device)
     
     total_params = sum(p.numel() for p in model.parameters())
