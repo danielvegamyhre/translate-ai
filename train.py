@@ -232,7 +232,7 @@ if __name__ == '__main__':
     argparser.add_argument("--learning-rate", type=float, default=1e-3)
     argparser.add_argument("--warmup-steps", type=int, default=100)
     argparser.add_argument("--num-layers", type=int, default=6)
-    argparser.add_argument("--embed", type=int, default=128)
+    argparser.add_argument("--embed-dim", type=int, default=128)
     argparser.add_argument("--ffwd-dim", type=int, default=512)
     argparser.add_argument("--d-model", type=int, default=128)
     argparser.add_argument("--num-attention-heads", type=int, default=2)
