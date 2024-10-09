@@ -4,3 +4,4 @@ tiktoken
 tqdm
 pandas
 matplotlib
+accelerate

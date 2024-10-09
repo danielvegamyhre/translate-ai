@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from argparse import ArgumentParser
 import tiktoken
 from tqdm import tqdm
+from accelerate import Accelerator
 
 from transformer import TransformerTranslator
 from dataset import EnglishToSpanishDataset
@@ -28,6 +29,7 @@ class TrainingConfig:
     dataset_file: str
     seq_len: int
     device: str
+    mixed_precision: str
     save_checkpoint: str
     load_checkpoint: str
     debug: bool
@@ -59,31 +61,49 @@ def train(cfg: TrainingConfig) -> None:
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    print(f"total dataset examples: {len(dataset)}")
+    print(f"total tokens in dataset: {dataset.num_tokens}")
 
     # initalize dataloaders
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
     # initialize model
-    d_model = 512
+    d_model = 128
     model = TransformerTranslator(
         input_vocab_size=vocab_size, 
         output_vocab_size=vocab_size,
-        embed_dim=512,
+        embed_dim=128,
         d_model=d_model,
         num_encoder_layers=cfg.num_layers,
         num_decoder_layers=cfg.num_layers,
-        num_attention_heads=8,
-        ffwd_dim=2048,
+        num_attention_heads=2,
+        ffwd_dim=512,
         max_seq_len=128,
         max_output_tokens=128).to(device)
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f"model parameters: {total_params}")
+    print(f"num layers: {cfg.num_layers}")
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
     lr_scheduler = NoamLR(optim, cfg.warmup_steps)
+
+    # configure mixed precision training if specified
+    accelerator = Accelerator(
+        mixed_precision=args.mixed_precision,
+    )
+    weight_dtype = torch.float32
+    if accelerator.mixed_precision == "fp16":
+        weight_dtype = torch.float16
+    elif accelerator.mixed_precision == "bf16":
+        weight_dtype = torch.bfloat16
+    model = model.to(weight_dtype)
+
+    model, optim, lr_scheduler, train_loader = accelerator.prepare(
+        model, optim, lr_scheduler, train_loader 
+    )
 
     # load checkpoint if specified
     curr_epoch = 0
@@ -130,12 +150,10 @@ def train(cfg: TrainingConfig) -> None:
                 if cfg.debug:
                     print(f"epoch: {epoch}, step: {step}, loss: {loss}")
 
-                optim.zero_grad(set_to_none=True)
-                loss.backward()
+                accelerator.backward(loss)
                 optim.step()
-
-                # after each step, do a lr scheduler step
                 lr_scheduler.step()
+                optim.zero_grad(set_to_none=True)
 
                 # estimate loss periodically
                 is_eval_step = step % cfg.eval_interval == 0
@@ -222,6 +240,7 @@ if __name__ == '__main__':
     argparser.add_argument("--save-checkpoint", type=str)
     argparser.add_argument("--debug", action="store_true", default=False)
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
+    argparser.add_argument("--mixed-precision", required=False, help="fp16, bfloat16")
     args = argparser.parse_args()
 
     cfg = TrainingConfig(
@@ -236,9 +255,10 @@ if __name__ == '__main__':
         dataset_file=args.dataset_file,
         seq_len=args.seq_len,
         device=args.device,
+        mixed_precision=args.mixed_precision,
         load_checkpoint=args.load_checkpoint,
         save_checkpoint=args.save_checkpoint,
         debug=args.debug,
-        plot_learning_curves=args.plot_learning_curves
+        plot_learning_curves=args.plot_learning_curves,
     )
     train(cfg)

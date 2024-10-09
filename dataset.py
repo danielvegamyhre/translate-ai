@@ -43,3 +43,9 @@ class EnglishToSpanishDataset(Dataset):
 
     def __getitem__(self, idx: int):
         return self.X[idx], self.Y[idx]
+
+    @property
+    def num_tokens(self):
+        total_tokens_x = len(self.X[0]) * len(self.X)
+        total_tokens_y = len(self.Y[0]) * len(self.Y)
+        return total_tokens_x + total_tokens_y
