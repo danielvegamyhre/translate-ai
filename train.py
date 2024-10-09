@@ -22,6 +22,10 @@ class TrainingConfig:
     learning_rate: float
     warmup_steps: int
     num_layers: int
+    embed_dim: int
+    d_model: int
+    ffwd_dim: int
+    num_attention_heads: int
     eval_interval: int
     eval_iters: int
     checkpoint_interval: int
@@ -69,16 +73,15 @@ def train(cfg: TrainingConfig) -> None:
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
 
     # initialize model
-    d_model = 128
     model = TransformerTranslator(
         input_vocab_size=vocab_size, 
         output_vocab_size=vocab_size,
-        embed_dim=128,
-        d_model=d_model,
+        embed_dim=cfg.embed_dim,
+        d_model=cfg.d_model,
         num_encoder_layers=cfg.num_layers,
         num_decoder_layers=cfg.num_layers,
-        num_attention_heads=2,
-        ffwd_dim=512,
+        num_attention_heads=cfg.num_attention_heads,
+        ffwd_dim=cfg.ffwd_dim,
         max_seq_len=128,
         max_output_tokens=128).to(device)
     
@@ -229,6 +232,10 @@ if __name__ == '__main__':
     argparser.add_argument("--learning-rate", type=float, default=1e-3)
     argparser.add_argument("--warmup-steps", type=int, default=100)
     argparser.add_argument("--num-layers", type=int, default=6)
+    argparser.add_argument("--embed", type=int, default=128)
+    argparser.add_argument("--ffwd-dim", type=int, default=512)
+    argparser.add_argument("--d-model", type=int, default=128)
+    argparser.add_argument("--num-attention-heads", type=int, default=2)
     argparser.add_argument("--eval-interval", type=int, default=100)
     argparser.add_argument("--eval-iters", type=int, default=10)
     argparser.add_argument("--checkpoint-interval", type=int, default=100)  
@@ -248,6 +255,10 @@ if __name__ == '__main__':
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup_steps,
         num_layers=args.num_layers,
+        embed_dim=args.embed_dim,
+        ffwd_dim=args.ffwd_dim,
+        d_model=args.d_model,
+        num_attention_heads=args.num_attention_heads,
         eval_interval=args.eval_interval,
         eval_iters=args.eval_iters,
         checkpoint_interval=args.checkpoint_interval,
