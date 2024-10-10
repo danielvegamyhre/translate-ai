@@ -34,16 +34,20 @@ def translate(english_query: str, checkpoint_file: str) -> str:
     model = TransformerTranslator(
         input_vocab_size=vocab_size, 
         output_vocab_size=vocab_size,
-        embed_dim=512,
-        d_model=512,
+        embed_dim=cfg.embed_dim,
+        d_model=cfg.d_model,
         num_encoder_layers=cfg.num_layers,
         num_decoder_layers=cfg.num_layers,
-        num_attention_heads=8,
-        ffwd_dim=2048,
-        max_seq_len=128,
-        max_output_tokens=128
-    ).to(cfg.device)
-
+        num_attention_heads=cfg.num_attention_heads,
+        ffwd_dim=cfg.ffwd_dim,
+        max_seq_len=cfg.seq_len,
+        max_output_tokens=128)
+    if cfg.mixed_precision == "bf16":
+        model = model.to(torch.bfloat16)
+    elif cfg.mixed_precision == "fp16":
+        model = model.to(torch.float16)
+    model = model.to(cfg.device)
+    
     # load checkpoint
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
