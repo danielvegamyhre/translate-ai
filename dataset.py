@@ -10,6 +10,10 @@ class TokenizerInterface(Protocol):
         pass
 
 class EnglishToSpanishDataset(Dataset):
+    '''
+    EnglishToSpanishDataset is intended to be used with the English-Spanish dataset
+    from here: https://www.kaggle.com/datasets/lonnieqin/englishspanish-translation-dataset/data 
+    '''
     def __init__(self, 
                  file_path: str, 
                  tokenizer: TokenizerInterface, 

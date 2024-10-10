@@ -1,6 +1,6 @@
 #!/bin/bash
 accelerate launch train.py \
-    --dataset-file=data/data.csv \
+    --dataset-file=data/english-spanish.csv \
     --device=mps \
     --epochs 1 \
     --learning-rate .001 \
