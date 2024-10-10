@@ -50,6 +50,9 @@ class DecoderLayer(nn.Module):
         self.masked_mha = MultiHeadSelfAttention(num_heads, embed_dim, d_model)
         self.mh_cross_attention = MultiHeadCrossAttention(num_heads, d_model)
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
+        self.ln1 = nn.LayerNorm(embed_dim)
+        self.ln2 = nn.LayerNorm(embed_dim)
+        self.ln3 = nn.LayerNorm(embed_dim)
         self.register_buffer('tril', torch.tril(torch.ones((max_seq_len, max_seq_len))))
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
@@ -61,16 +64,17 @@ class DecoderLayer(nn.Module):
             decoder_padding_mask = decoder_padding_mask.unsqueeze(1).expand(-1, T, -1)
         # B,T,T
         combined_mask = (decoder_padding_mask | decoder_causal_mask) if decoder_padding_mask is not None else decoder_causal_mask
-        x = f.layer_norm(x + self.masked_mha(x, combined_mask), x.shape)
+
+        x = self.ln1(x + self.masked_mha(x, combined_mask))
         # B,T,H -> B,T,H
-        x = f.layer_norm(x + self.mh_cross_attention(x, encoder_out), x.shape)
+        x = self.ln2(x + self.mh_cross_attention(x, encoder_out))
         # B,T,H -> B,T,H
-        x = f.layer_norm(x + self.ffwd(x), x.shape)
+        x = self.ln3(x + self.ffwd(x))
         return x
 
 
 class MultiHeadCrossAttention(nn.Module):#
-    def __init__(self, num_heads: int, d_model: int):
+    def __init__(self, num_heads: int, d_model: int, dropout: float = 0.1):
         super(MultiHeadCrossAttention, self).__init__()
         assert d_model % num_heads == 0
         head_dim = d_model // num_heads
@@ -79,20 +83,26 @@ class MultiHeadCrossAttention(nn.Module):#
             for _ in range(num_heads)
         ])
         self.linear = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # B,T,H -> B,T,H
         x = torch.cat([head(x, encoder_out) for head in self.heads], dim=-1)
         # B,T,H -> B,T,H
         x = self.linear(x)
+        x = self.dropout(x)
         return x
 
 class CrossAttentionHead(nn.Module):
-    def __init__(self, d_model: int, head_dim: int):
+    def __init__(self, 
+                 d_model: int, 
+                 head_dim: int,
+                 dropout: float = 0.1):
         super(CrossAttentionHead, self).__init__()
         self.q = nn.Linear(d_model, head_dim)
         self.k = nn.Linear(d_model, head_dim)
         self.v = nn.Linear(d_model, head_dim)
+        self.dropout = nn.Dropout(dropout)
     
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # queries come from previous decoder layer
@@ -107,11 +117,12 @@ class CrossAttentionHead(nn.Module):
 
         # decoder queries can attend to all parts of the encoder output
         # (B,T,H) @ (B,H,T) = (B,T,T)
-        similarities = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
+        scores = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
 
         # B,T,T
-        weighted_similarities = torch.softmax(similarities, dim=-1)
+        weighted_scores = torch.softmax(scores, dim=-1)
+        weighted_scores = self.dropout(weighted_scores)
 
         # (B,T,T) @ (B,T,H) = B,T,H
-        out = weighted_similarities @ values
+        out = weighted_scores @ values
         return out
