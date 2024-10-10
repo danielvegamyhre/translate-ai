@@ -1,5 +1,5 @@
 #!/bin/bash
-accelerate launch train.py \
+accelerate launch translate_ai/train.py \
     --dataset-file=data/english-spanish.csv \
     --device=mps \
     --epochs 1 \
