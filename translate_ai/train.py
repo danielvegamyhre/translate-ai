@@ -123,7 +123,8 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            for step, (encoded_inputs, encoded_targets) in enumerate(train_loader):
+            for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+                import pdb;pdb.set_trace()
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoded_inputs.to(device)
 
