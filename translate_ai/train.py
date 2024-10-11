@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-
+import os
 import torch
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import DataLoader, random_split
 from dataclasses import dataclass
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import tiktoken
 from tqdm import tqdm
 from accelerate import Accelerator
-from torch.nn.utils.rnn import pad_sequence
+from torch.utils.tensorboard import SummaryWriter
 
 
 from transformer import TransformerTranslator
@@ -41,8 +41,13 @@ class TrainingConfig:
     load_checkpoint: str
     debug: bool
     plot_learning_curves: bool
+    log_dir: str
 
 def train(cfg: TrainingConfig) -> None:
+    # set up logdir
+    if cfg.log_dir:
+        os.makedirs(cfg.log_dir, exist_ok=True)
+
     # configure device
     device = torch.device(cfg.device)
     print("device: ", device)
@@ -119,12 +124,12 @@ def train(cfg: TrainingConfig) -> None:
         curr_epoch = checkpoint['epoch']
 
     # training loop
+    writer = SummaryWriter(cfg.log_dir)
     train_losses, val_losses = [], []
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
             for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-                import pdb;pdb.set_trace()
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoded_inputs.to(device)
 
@@ -168,11 +173,19 @@ def train(cfg: TrainingConfig) -> None:
                     model.eval()
                     avg_train_loss = estimate_loss(model, train_loader, ignore_index=pad_token)
                     avg_val_loss = estimate_loss(model, val_loader, ignore_index=pad_token)
+                    model.train()
+
+                    # log to stdout
                     train_losses.append(avg_train_loss)
                     val_losses.append(avg_val_loss)
                     print(f"Train loss: {avg_train_loss}")
                     print(f"Validation loss: {avg_val_loss}")
-                    model.train()
+
+                    # log to tensorboard
+                    writer.add_scalars('loss', {
+                            'training': avg_train_loss.item(),
+                            'validation': avg_val_loss.item(),
+                        }, epoch + step)
 
                 # save checkpoint if specified
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
@@ -229,6 +242,12 @@ def estimate_loss(model: nn.Module,
         losses[i] = loss
     return losses.mean()
 
+def validate_args(args: Namespace) -> None:
+    if not args.dataset_file and not args.dataset_dir:
+        raise ValueError("--dataset-dir or --dataset-file must be specified")
+    if args.mixed_precision and args.mixed_precision not in {"fp16","bf16"}:
+        raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: 'fp16', 'bf16'")
+
 if __name__ == '__main__':
     argparser = ArgumentParser()
     argparser.add_argument("--epochs", type=int, default=100)
@@ -252,10 +271,10 @@ if __name__ == '__main__':
     argparser.add_argument("--debug", action="store_true", default=False)
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
     argparser.add_argument("--mixed-precision", required=False, help="fp16, bfloat16")
+    argparser.add_argument("--log-dir", type=str)
     args = argparser.parse_args()
 
-    if not args.dataset_file and not args.dataset_dir:
-        raise ValueError("--dataset-dir or --dataset-file must be specified")
+    validate_args(args)
 
     cfg = TrainingConfig(
         epochs=args.epochs,
@@ -279,5 +298,6 @@ if __name__ == '__main__':
         save_checkpoint=args.save_checkpoint,
         debug=args.debug,
         plot_learning_curves=args.plot_learning_curves,
+        log_dir=args.log_dir,
     )
     train(cfg)
