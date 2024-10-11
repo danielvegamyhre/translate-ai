@@ -9,9 +9,11 @@ from argparse import ArgumentParser
 import tiktoken
 from tqdm import tqdm
 from accelerate import Accelerator
+from torch.nn.utils.rnn import pad_sequence
+
 
 from transformer import TransformerTranslator
-from dataset import EnglishToSpanishDataset
+from datasets.multi_un import MultiUNDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
@@ -31,6 +33,7 @@ class TrainingConfig:
     checkpoint_interval: int
     batch_size: int
     dataset_file: str
+    dataset_dir: str
     seq_len: int
     device: str
     mixed_precision: str
@@ -55,18 +58,17 @@ def train(cfg: TrainingConfig) -> None:
     print(f"vocab size: {vocab_size}")
 
     # initialize dataset
-    dataset = EnglishToSpanishDataset(
-        cfg.dataset_file, 
-        tokenizer, 
-        padding_token=pad_token,
-        bos_token=bos_token,
-        eos_token=eos_token)
-    
+    dataset = MultiUNDataset(cfg.dataset_dir, 
+                             tokenizer, 
+                             max_length=cfg.seq_len, 
+                             pad_token=pad_token, 
+                             begin_text_token=bos_token,
+                             end_text_token=eos_token)
+
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     print(f"total dataset examples: {len(dataset)}")
-    print(f"total tokens in dataset: {dataset.num_tokens}")
 
     # initalize dataloaders
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
@@ -121,7 +123,7 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+            for step, (encoded_inputs, encoded_targets) in enumerate(train_loader):
                 # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoded_inputs.to(device)
 
@@ -240,7 +242,8 @@ if __name__ == '__main__':
     argparser.add_argument("--eval-iters", type=int, default=10)
     argparser.add_argument("--checkpoint-interval", type=int, default=100)  
     argparser.add_argument("--batch-size", type=int, default=32) 
-    argparser.add_argument("--dataset-file", type=str, required=True)
+    argparser.add_argument("--dataset-file", type=str)
+    argparser.add_argument("--dataset-dir", type=str)
     argparser.add_argument("--seq-len", type=int, default=128)
     argparser.add_argument("--device", type=str, default="cpu")
     argparser.add_argument("--load-checkpoint", type=str)
@@ -249,6 +252,9 @@ if __name__ == '__main__':
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
     argparser.add_argument("--mixed-precision", required=False, help="fp16, bfloat16")
     args = argparser.parse_args()
+
+    if not args.dataset_file and not args.dataset_dir:
+        raise ValueError("--dataset-dir or --dataset-file must be specified")
 
     cfg = TrainingConfig(
         epochs=args.epochs,
@@ -264,6 +270,7 @@ if __name__ == '__main__':
         checkpoint_interval=args.checkpoint_interval,
         batch_size=args.batch_size,
         dataset_file=args.dataset_file,
+        dataset_dir=args.dataset_dir,
         seq_len=args.seq_len,
         device=args.device,
         mixed_precision=args.mixed_precision,

@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 import torch
 from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
 import pandas as pd
-from typing import Protocol
+from torch.nn.utils.rnn import pad_sequence
 
-class TokenizerInterface(Protocol):
-    def encode(self, text: str) -> list[int]:
-        pass
+from translate_ai.datasets import TokenizerInterface
 
 class EnglishToSpanishDataset(Dataset):
     '''
@@ -53,3 +50,4 @@ class EnglishToSpanishDataset(Dataset):
         total_tokens_x = len(self.X[0]) * len(self.X)
         total_tokens_y = len(self.Y[0]) * len(self.Y)
         return total_tokens_x + total_tokens_y
+    
