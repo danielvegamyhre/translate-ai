@@ -35,6 +35,7 @@ class Decoder(nn.Module):
         x = tok_embed + pos_embed
         for layer in self.layers:
             x = layer(x, encoder_out, decoder_padding_mask)
+
         # (B,T,H) -> (B,T,output_vocab_size)
         x = self.linear(x)
         return x

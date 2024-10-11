@@ -1,5 +1,7 @@
 .env/
 __pycache__/
 checkpoints/
+logs/
+wandb/
 *.png
 data/un/

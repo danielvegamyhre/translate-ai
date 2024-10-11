@@ -5,11 +5,13 @@ from torch import nn
 from torch.nn import functional as f
 from torch.utils.data import DataLoader, random_split
 from dataclasses import dataclass
+from datetime import datetime
 from argparse import ArgumentParser, Namespace
 import tiktoken
 from tqdm import tqdm
 from accelerate import Accelerator
 from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 
 from transformer import TransformerTranslator
@@ -41,12 +43,13 @@ class TrainingConfig:
     load_checkpoint: str
     debug: bool
     plot_learning_curves: bool
-    log_dir: str
+    tensorboard_log_dir: str
+    wandb_project: str
 
 def train(cfg: TrainingConfig) -> None:
     # set up logdir
-    if cfg.log_dir:
-        os.makedirs(cfg.log_dir, exist_ok=True)
+    if cfg.tensorboard_log_dir:
+        os.makedirs(cfg.tensorboard_log_dir, exist_ok=True)
 
     # configure device
     device = torch.device(cfg.device)
@@ -123,8 +126,26 @@ def train(cfg: TrainingConfig) -> None:
         optim.load_state_dict(checkpoint['optimizer_state_dict'])
         curr_epoch = checkpoint['epoch']
 
+    # configure wandb
+    if cfg.wandb_project:
+        wandb.init(project=cfg.wandb_project, config={
+            "learning_rate": cfg.learning_rate,
+            "epochs": cfg.epochs,
+            "batch_size": cfg.batch_size,
+            "num_layers:": cfg.num_layers,
+            "num_attention_heads": cfg.num_attention_heads,
+            "embed_dim": cfg.embed_dim,
+            "d_model": cfg.d_model,
+            "total_params": total_params,
+        })
+        wandb.watch(model, log="all")
+
+    # configure tensorboard
+    if cfg.tensorboard_log_dir:
+        ds = datetime.now()
+        writer = SummaryWriter(f"runs/{ds}")
+
     # training loop
-    writer = SummaryWriter(cfg.log_dir)
     train_losses, val_losses = [], []
     try:
         model.train()
@@ -182,10 +203,18 @@ def train(cfg: TrainingConfig) -> None:
                     print(f"Validation loss: {avg_val_loss}")
 
                     # log to tensorboard
-                    writer.add_scalars('loss', {
-                            'training': avg_train_loss.item(),
-                            'validation': avg_val_loss.item(),
-                        }, epoch + step)
+                    if cfg.tensorboard_log_dir:
+                        global_step = epoch + step
+                        scalars = {'training':avg_train_loss.item(), 'validation': avg_val_loss.item()}
+                        writer.add_scalars('loss', scalars, global_step)
+
+                    # log to wandb
+                    if cfg.wandb_project:
+                        wandb.log({
+                            'train_loss':  avg_train_loss.item(),
+                            'val_loss':  avg_val_loss.item(),
+                        })
+
 
                 # save checkpoint if specified
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
@@ -270,8 +299,9 @@ if __name__ == '__main__':
     argparser.add_argument("--save-checkpoint", type=str)
     argparser.add_argument("--debug", action="store_true", default=False)
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
-    argparser.add_argument("--mixed-precision", required=False, help="fp16, bfloat16")
-    argparser.add_argument("--log-dir", type=str)
+    argparser.add_argument("--mixed-precision", help="fp16, bfloat16")
+    argparser.add_argument("--tensorboard-log-dir", type=str)
+    argparser.add_argument("--wandb-project", type=str)
     args = argparser.parse_args()
 
     validate_args(args)
@@ -298,6 +328,7 @@ if __name__ == '__main__':
         save_checkpoint=args.save_checkpoint,
         debug=args.debug,
         plot_learning_curves=args.plot_learning_curves,
-        log_dir=args.log_dir,
+        tensorboard_log_dir=args.tensorboard_log_dir,
+        wandb_project=args.wandb_project,
     )
     train(cfg)
