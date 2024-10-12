@@ -10,14 +10,14 @@ from tqdm import tqdm
 
 from transformer import TransformerTranslator
 from checkpoint import load_checkpoint
-from train import TrainingConfig
+from config import TrainingConfig
 
 def translate(english_query: str, checkpoint_file: str) -> str:
     '''Translate English input sequence to Spanish.'''
 
     # load checkpoint if specified
-    checkpoint = load_checkpoint(checkpoint_file)
-    cfg = checkpoint['config']
+    checkpoint: dict = load_checkpoint(checkpoint_file)
+    cfg: TrainingConfig = checkpoint['config']
 
     # configure tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -40,7 +40,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
         max_seq_len=cfg.seq_len,
-        max_output_tokens=128)
+        max_output_tokens=cfg.max_output_tokens)
     if cfg.mixed_precision == "bf16":
         model = model.to(torch.bfloat16)
     elif cfg.mixed_precision == "fp16":

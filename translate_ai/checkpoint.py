@@ -4,7 +4,13 @@ import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
 
-def save_checkpoint(path: str, epoch: int, cfg, model: nn.Module, optim: Optimizer):
+from config import TrainingConfig
+
+def save_checkpoint(path: str, 
+                    epoch: int, 
+                    cfg: TrainingConfig, 
+                    model: nn.Module, 
+                    optim: Optimizer):
     print(f'checkpointing to {path}') 
     torch.save({
             'epoch': epoch,
@@ -13,8 +19,8 @@ def save_checkpoint(path: str, epoch: int, cfg, model: nn.Module, optim: Optimiz
             'config': cfg,
             }, path)
 
-def load_checkpoint(path: str):
-    print(f'loading checkpiont from path {path}')
+def load_checkpoint(path: str) -> dict:
+    print(f'loading checkpoint from path {path}')
     checkpoint = torch.load(path)
     print(f'loaded checkpoint from {path}')
     return checkpoint

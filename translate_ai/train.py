@@ -1,53 +1,28 @@
 #!/usr/bin/env python3
 import os
+from datetime import datetime
+from argparse import ArgumentParser, Namespace
+from tqdm import tqdm
+
 import torch
 from torch import nn
 from torch.nn import functional as f
 from torch.utils.data import DataLoader, random_split
-from dataclasses import dataclass
-from datetime import datetime
-from argparse import ArgumentParser, Namespace
-import tiktoken
-from tqdm import tqdm
-from accelerate import Accelerator
 from torch.utils.tensorboard import SummaryWriter
+import tiktoken
+from accelerate import Accelerator
 import wandb
-
 
 from transformer import TransformerTranslator
 from datasets.multi_un import MultiUNDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
+from config import TrainingConfig
 
-@dataclass
-class TrainingConfig:
-    epochs: int
-    learning_rate: float
-    warmup_steps: int
-    num_layers: int
-    embed_dim: int
-    d_model: int
-    ffwd_dim: int
-    num_attention_heads: int
-    eval_interval: int
-    eval_iters: int
-    checkpoint_interval: int
-    batch_size: int
-    dataset_file: str
-    dataset_dir: str
-    seq_len: int
-    device: str
-    mixed_precision: str
-    save_checkpoint: str
-    load_checkpoint: str
-    debug: bool
-    plot_learning_curves: bool
-    tensorboard_log_dir: str
-    wandb_project: str
 
 def train(cfg: TrainingConfig) -> None:
-    # set up logdir
+    # set up tensorboard_log_dir
     if cfg.tensorboard_log_dir:
         os.makedirs(cfg.tensorboard_log_dir, exist_ok=True)
 
@@ -93,7 +68,7 @@ def train(cfg: TrainingConfig) -> None:
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
         max_seq_len=cfg.seq_len,
-        max_output_tokens=128).to(device)
+        max_output_tokens=cfg.max_output_tokens).to(device)
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f"model parameters: {total_params}")
@@ -215,7 +190,6 @@ def train(cfg: TrainingConfig) -> None:
                             'val_loss':  avg_val_loss.item(),
                         })
 
-
                 # save checkpoint if specified
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
@@ -226,9 +200,12 @@ def train(cfg: TrainingConfig) -> None:
     except KeyboardInterrupt:
         pass
 
-    # plot learning curves if specified
+    # checkpoint and plot learning curves
+    if cfg.save_checkpoint:
+        save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
     if cfg.plot_learning_curves:
         plot_learning_curves(train_losses, val_losses)
+
 
 @torch.no_grad()
 def estimate_loss(model: nn.Module, 
@@ -271,7 +248,8 @@ def estimate_loss(model: nn.Module,
         losses[i] = loss
     return losses.mean()
 
-def validate_args(args: Namespace) -> None:
+
+def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
     if args.mixed_precision and args.mixed_precision not in {"fp16","bf16"}:
@@ -279,56 +257,84 @@ def validate_args(args: Namespace) -> None:
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
+    # hyperparams
     argparser.add_argument("--epochs", type=int, default=100)
     argparser.add_argument("--learning-rate", type=float, default=1e-3)
     argparser.add_argument("--warmup-steps", type=int, default=100)
+    argparser.add_argument("--batch-size", type=int, default=32) 
+
+    # acceleration
+    argparser.add_argument("--mixed-precision", help="fp16, bfloat16")
+    argparser.add_argument("--device", type=str, default="cpu")
+
+    # model dims
     argparser.add_argument("--num-layers", type=int, default=6)
     argparser.add_argument("--embed-dim", type=int, default=128)
     argparser.add_argument("--ffwd-dim", type=int, default=512)
     argparser.add_argument("--d-model", type=int, default=128)
     argparser.add_argument("--num-attention-heads", type=int, default=2)
+    argparser.add_argument("--seq-len", type=int, default=128)
+    argparser.add_argument("--max-output-tokens", type=int, default=128)
+
+    # evaluation
     argparser.add_argument("--eval-interval", type=int, default=100)
     argparser.add_argument("--eval-iters", type=int, default=10)
+
+    # checkpointing
     argparser.add_argument("--checkpoint-interval", type=int, default=100)  
-    argparser.add_argument("--batch-size", type=int, default=32) 
-    argparser.add_argument("--dataset-file", type=str)
-    argparser.add_argument("--dataset-dir", type=str)
-    argparser.add_argument("--seq-len", type=int, default=128)
-    argparser.add_argument("--device", type=str, default="cpu")
     argparser.add_argument("--load-checkpoint", type=str)
     argparser.add_argument("--save-checkpoint", type=str)
-    argparser.add_argument("--debug", action="store_true", default=False)
-    argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
-    argparser.add_argument("--mixed-precision", help="fp16, bfloat16")
+
+    # dataset
+    argparser.add_argument("--dataset-file", type=str)
+    argparser.add_argument("--dataset-dir", type=str)
+
+    # observability
     argparser.add_argument("--tensorboard-log-dir", type=str)
     argparser.add_argument("--wandb-project", type=str)
+    argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
+    argparser.add_argument("--debug", action="store_true", default=False)
     args = argparser.parse_args()
 
-    validate_args(args)
+    _validate_args(args)
 
     cfg = TrainingConfig(
+        # hyperparams
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         warmup_steps=args.warmup_steps,
+        batch_size=args.batch_size,
+
+        # acceleration
+        device=args.device,
+        mixed_precision=args.mixed_precision,
+
+        # model dims
         num_layers=args.num_layers,
         embed_dim=args.embed_dim,
         ffwd_dim=args.ffwd_dim,
         d_model=args.d_model,
         num_attention_heads=args.num_attention_heads,
+        seq_len=args.seq_len,
+        max_output_tokens=args.max_output_tokens,
+
+        # evaluation
         eval_interval=args.eval_interval,
         eval_iters=args.eval_iters,
+
+        # checkpointing
         checkpoint_interval=args.checkpoint_interval,
-        batch_size=args.batch_size,
-        dataset_file=args.dataset_file,
-        dataset_dir=args.dataset_dir,
-        seq_len=args.seq_len,
-        device=args.device,
-        mixed_precision=args.mixed_precision,
         load_checkpoint=args.load_checkpoint,
         save_checkpoint=args.save_checkpoint,
-        debug=args.debug,
+
+        # dataset
+        dataset_file=args.dataset_file,
+        dataset_dir=args.dataset_dir,
+        
+        # observability and debugging
         plot_learning_curves=args.plot_learning_curves,
         tensorboard_log_dir=args.tensorboard_log_dir,
         wandb_project=args.wandb_project,
+        debug=args.debug,
     )
     train(cfg)
