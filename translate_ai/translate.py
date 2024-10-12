@@ -3,7 +3,6 @@
 import torch
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import Dataset
 from dataclasses import dataclass
 from argparse import ArgumentParser
 import tiktoken
