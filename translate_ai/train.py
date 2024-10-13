@@ -29,7 +29,7 @@ def train(cfg: TrainingConfig) -> None:
     accelerator = Accelerator(
         mixed_precision=args.mixed_precision,
     )
-    accelerator.print(f"Rank {accelerator.process_index} is running with world size {accelerator.state.world_size}")
+    accelerator.print(f"Rank {accelerator.process_index} is running with world size {cfg.world_size}")
 
 
     device = accelerator.device
