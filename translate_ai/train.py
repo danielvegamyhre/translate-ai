@@ -7,7 +7,7 @@ from tqdm import tqdm
 import torch
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, DistributedSampler, random_split
 from torch.utils.tensorboard import SummaryWriter
 import tiktoken
 from accelerate import Accelerator
@@ -24,13 +24,14 @@ SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
 
 
 def train(cfg: TrainingConfig) -> None:
-    # set up tensorboard_log_dir
-    if cfg.tensorboard_log_dir:
-        os.makedirs(cfg.tensorboard_log_dir, exist_ok=True)
-
     # configure device
-    device = torch.device(cfg.device)
+    device = _get_device(cfg.rank)
     print("device: ", device)
+
+    # distributed training
+    if args.multi_gpu or args.multi_node:
+        backend = "nccl" if torch.cuda.is_available() else "gloo"
+        torch.distributed.init_process_group(backend=backend, init_method=args.dist_url, world_size=cfg.world_size, rank=cfg.rank)
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -55,8 +56,12 @@ def train(cfg: TrainingConfig) -> None:
     print(f"total dataset examples: {len(dataset)}")
 
     # initalize dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False)
+    train_sampler, val_sampler = None, None
+    if args.multi_node or args.multi_gpu:
+        train_sampler = DistributedSampler(train_dataset, cfg.world_size, cfg.rank)
+        val_sampler = DistributedSampler(val_dataset, cfg.world_size, cfg.rank)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, sampler=train_sampler)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, sampler=val_sampler)
 
     # initialize model
     model = TransformerTranslator(
@@ -70,6 +75,11 @@ def train(cfg: TrainingConfig) -> None:
         ffwd_dim=cfg.ffwd_dim,
         max_seq_len=cfg.seq_len,
         max_output_tokens=cfg.max_output_tokens).to(device)
+
+    if args.multi_node:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.rank])
+    elif args.multi_gpu:
+        model = torch.nn.DataParallel(model, device_ids=[cfg.rank])
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f"model parameters: {total_params}")
@@ -79,7 +89,7 @@ def train(cfg: TrainingConfig) -> None:
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
     lr_scheduler = NoamLR(optim, cfg.warmup_steps)
 
-    # configure mixed precision training if specified
+    # configure mixed precision training
     accelerator = Accelerator(
         mixed_precision=args.mixed_precision,
     )
@@ -94,7 +104,7 @@ def train(cfg: TrainingConfig) -> None:
         model, optim, lr_scheduler, train_loader 
     )
 
-    # load checkpoint if specified
+    # load checkpoint
     curr_epoch = 0
     if cfg.load_checkpoint:
         checkpoint = load_checkpoint(cfg.load_checkpoint)
@@ -118,16 +128,20 @@ def train(cfg: TrainingConfig) -> None:
 
     # configure tensorboard
     if cfg.tensorboard_log_dir:
-        ds = datetime.now()
-        writer = SummaryWriter(f"runs/{ds}")
+        os.makedirs(cfg.tensorboard_log_dir, exist_ok=True)
+        writer = SummaryWriter(f"runs/{datetime.now()}")
 
     # training loop
     train_losses, val_losses = [], []
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
+            # make sure data shuffling it different between epochs
+            if train_sampler is not None:
+                train_sampler.set_epoch(epoch)
+            if val_sampler is not None:
+                val_sampler.set_epoch(epoch)
             for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-                # encoder_input, decoder_targets = get_batch(dataset, cfg.seq_len, cfg.batch_size)
                 encoder_input = encoded_inputs.to(device)
 
                 # remove last token of targets to get decoder inputs
@@ -201,11 +215,13 @@ def train(cfg: TrainingConfig) -> None:
     except KeyboardInterrupt:
         pass
 
-    # checkpoint and plot learning curves
-    if cfg.save_checkpoint:
-        save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
-    if cfg.plot_learning_curves:
-        plot_learning_curves(train_losses, val_losses)
+    finally:
+        if cfg.save_checkpoint:
+            save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
+        if cfg.plot_learning_curves:
+            plot_learning_curves(train_losses, val_losses)
+        if cfg.multi_node or cfg.multi_gpu:
+            torch.distributed.destroy_process_group()
 
 
 @torch.no_grad()
@@ -249,12 +265,25 @@ def estimate_loss(model: nn.Module,
         losses[i] = loss
     return losses.mean()
 
+def _get_device(rank: int):
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{rank}")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    return device 
 
 def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
     if args.mixed_precision and args.mixed_precision not in SUPPORTED_MIXED_PRECISION_DTYPES:
         raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: {SUPPORTED_MIXED_PRECISION_DTYPES}")
+    if args.multi_gpu and args.multi_node:
+        raise ValueError(f"only one of --multi-gpu and --multi-node can be specified")
+    if (args.multi_node and not args.dist_url) or (args.dist_url and not args.multi_node):
+        raise ValueError(f"--multi-node and --dist-url must both be set if one is set")
+
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
@@ -295,6 +324,14 @@ if __name__ == '__main__':
     argparser.add_argument("--wandb-project", type=str)
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
     argparser.add_argument("--debug", action="store_true", default=False)
+
+    # distributed training
+    argparser.add_argument('--multi-gpu', action='store_true', help="single node multi-GPU training with data parallelism")
+    argparser.add_argument('--multi-node', action='store_true', help="multi-node multi-GPU training with distributed data parallelism")
+    argparser.add_argument('--dist-url', type=str, help="rendezvous url for multi-node training")
+    argparser.add_argument('--world-size', default=1, type=int, help="number of processes (chips) participating in the training job")
+    argparser.add_argument('--rank', default=0, type=int, help="rank (id) of the current worker")
+
     args = argparser.parse_args()
 
     _validate_args(args)
@@ -331,7 +368,14 @@ if __name__ == '__main__':
         # dataset
         dataset_file=args.dataset_file,
         dataset_dir=args.dataset_dir,
-        
+
+        # distributed training
+        multi_gpu=args.multi_gpu,
+        multi_node=args.multi_node,
+        world_size=args.world_size,
+        rank=args.rank,
+        dist_url=args.dist_url,
+
         # observability and debugging
         plot_learning_curves=args.plot_learning_curves,
         tensorboard_log_dir=args.tensorboard_log_dir,

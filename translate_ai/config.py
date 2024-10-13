@@ -35,6 +35,13 @@ class TrainingConfig:
     dataset_file: str
     dataset_dir: str
 
+    # distributed training
+    multi_gpu: bool
+    multi_node: bool
+    world_size: int
+    dist_url: str
+    rank: int
+
     # observability and debugging
     tensorboard_log_dir: str
     wandb_project: str
