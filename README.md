@@ -9,10 +9,9 @@ English to Spanish translation model with custom [Datasets](https://github.com/d
 
 ### Feature overview 
 - Encoder decoder transformer architecture closely following the [research paper](https://arxiv.org/pdf/1706.03762) from Google.
-- Fast BPE tokenization via [tiktoken](https://github.com/openai/tiktoken)
-- [Noam learning rate scheduler](https://nn.labml.ai/optimizers/noam.html)
-- Configurable hyperparams (batch size, epochs, learning rate, warmup steps)
-- Configurable model dimensions (number of layers, embed dim, d-model, feedforward dim, number of attention heads, sequence length, max output sequence length)
+- Fast BPE tokenization
+- [Noam learning rate scheduler](https://nn.labml.ai/optimizers/noam.html) as per the paper
+- Configurable hyperparams and model dimensions
 - Configurable acceleration (mixed precision training, device type)
     - Support for [accelerate](https://huggingface.co/docs/accelerate/en/index)
 - Auto-checkpointing support

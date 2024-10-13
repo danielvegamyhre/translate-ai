@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 from torch.nn.utils.rnn import pad_sequence
 
-from translate_ai.datasets import TokenizerInterface
+from datasets import TokenizerInterface
 
 class EnglishToSpanishDataset(Dataset):
     '''

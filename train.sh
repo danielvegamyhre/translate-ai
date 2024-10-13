@@ -1,7 +1,7 @@
 #!/bin/bash
 accelerate launch translate_ai/train.py \
-    --dataset-dir=data/un/text/en-es/en-es/ \
-    --device=mps \
+    --dataset-file data/english-spanish.csv \
+    --device mps \
     --epochs 1 \
     --learning-rate .001 \
     --batch-size 2 \
@@ -15,4 +15,4 @@ accelerate launch translate_ai/train.py \
     --eval-iters 10 \
     --checkpoint-interval 100 \
     --save-checkpoint checkpoints/chkpt.pt \
-    --plot-learning-curves
+    --wandb-project dvm

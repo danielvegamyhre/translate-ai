@@ -14,7 +14,7 @@ from accelerate import Accelerator
 import wandb
 
 from transformer import TransformerTranslator
-from datasets.multi_un import MultiUNDataset
+from datasets.english_spanish import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
@@ -43,12 +43,11 @@ def train(cfg: TrainingConfig) -> None:
     print(f"vocab size: {vocab_size}")
 
     # initialize dataset
-    dataset = MultiUNDataset(cfg.dataset_dir, 
-                             tokenizer, 
-                             max_length=cfg.seq_len, 
-                             pad_token=pad_token, 
-                             begin_text_token=bos_token,
-                             end_text_token=eos_token)
+    dataset = EnglishToSpanishDataset(cfg.dataset_file,
+                                      tokenizer,
+                                      pad_token,
+                                      bos_token,
+                                      eos_token)
 
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
