@@ -19,6 +19,7 @@ from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
 from config import TrainingConfig
+from utils import log
 
 SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
 
@@ -29,12 +30,11 @@ def train(cfg: TrainingConfig) -> None:
         mixed_precision=args.mixed_precision,
     )
     device = accelerator.device
-    print("device: ", device)
-
-    # distributed training
-    # if args.multi_gpu or args.multi_node:
-    #     backend = "nccl" if torch.cuda.is_available() else "gloo"
-    #     torch.distributed.init_process_group(backend=backend, init_method=args.dist_url, world_size=cfg.world_size, rank=cfg.rank)
+    local_rank = accelerator.local_process_index
+    global_rank = accelerator.process_index
+    log(f"device: {device}", local_rank)
+    log(f"local rank: {local_rank}", local_rank)
+    log(f"global rank: {global_rank}", local_rank)
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -43,8 +43,8 @@ def train(cfg: TrainingConfig) -> None:
     pad_token = vocab_size - 1
     bos_token = vocab_size - 2
     eos_token = vocab_size - 3
-    print(f"tokenizer: tiktoken cl100k_base, PAD: {pad_token}, BOS: {bos_token}, EOS: {eos_token}")
-    print(f"vocab size: {vocab_size}")
+    log(f"tokenizer: tiktoken cl100k_base, PAD: {pad_token}, BOS: {bos_token}, EOS: {eos_token}", local_rank)
+    log(f"vocab size: {vocab_size}", local_rank)
 
     # initialize dataset
     dataset = EnglishToSpanishDataset(cfg.dataset_file,
@@ -56,13 +56,10 @@ def train(cfg: TrainingConfig) -> None:
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-    print(f"total dataset examples: {len(dataset)}")
+    log(f"total dataset examples: {len(dataset)}", local_rank)
 
     # initalize dataloaders
     train_sampler, val_sampler = None, None
-    # if args.multi_node or args.multi_gpu:
-    #     train_sampler = DistributedSampler(train_dataset, cfg.world_size, cfg.rank)
-    #     val_sampler = DistributedSampler(val_dataset, cfg.world_size, cfg.rank)
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, sampler=train_sampler)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, sampler=val_sampler)
 
@@ -79,14 +76,9 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=cfg.seq_len,
         max_output_tokens=cfg.max_output_tokens).to(device)
 
-    # if args.multi_node:
-    #     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.rank])
-    # elif args.multi_gpu:
-    #     model = torch.nn.DataParallel(model, device_ids=[cfg.rank])
-    
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"model parameters: {total_params}")
-    print(f"num layers: {cfg.num_layers}")
+    log(f"model parameters: {total_params}", local_rank)
+    log(f"num layers: {cfg.num_layers}", local_rank)
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
@@ -150,7 +142,7 @@ def train(cfg: TrainingConfig) -> None:
                 # remove first token for targets so the target seq is offset from input by 1
                 decoder_targets = encoded_targets[:, 1:].to(device)
                 if cfg.debug:
-                    print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
+                    log(f'decoder targets min: {decoder_targets.min().item()}, max {decoder_targets.max().item()}', local_rank)
 
                 # create padding masks to ensure model doesn't attend to padding tokens
                 encoder_padding_mask = (encoder_input == pad_token).to(device) # (B,T)
@@ -160,8 +152,8 @@ def train(cfg: TrainingConfig) -> None:
 
                 if cfg.debug:
                     import pdb; pdb.set_trace()
-                    print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
-                    print('logits argmax', torch.argmax(logits, dim=-1))
+                    log(f'logits min: {logits.min().item()}, max: {logits.max().item()}, mean: {logits.mean().item()}', local_rank)
+                    log(f'logits argmax: {torch.argmax(logits, dim=-1)}', local_rank)
 
                 # flatten predicted probs and targets for cross entropy loss
                 B,T,C = logits.shape
@@ -170,7 +162,7 @@ def train(cfg: TrainingConfig) -> None:
                 
                 loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
                 if cfg.debug:
-                    print(f"epoch: {epoch}, step: {step}, loss: {loss}")
+                    log(f"epoch: {epoch}, step: {step}, loss: {loss}", local_rank)
 
                 accelerator.backward(loss)
                 optim.step()
@@ -180,7 +172,7 @@ def train(cfg: TrainingConfig) -> None:
                 # estimate loss periodically
                 is_eval_step = step % cfg.eval_interval == 0
                 if is_eval_step:
-                    print("Estimating loss")
+                    log("Estimating loss", local_rank)
                     model.eval()
                     avg_train_loss = estimate_loss(model, train_loader, ignore_index=pad_token)
                     avg_val_loss = estimate_loss(model, val_loader, ignore_index=pad_token)
@@ -189,8 +181,8 @@ def train(cfg: TrainingConfig) -> None:
                     # log to stdout
                     train_losses.append(avg_train_loss)
                     val_losses.append(avg_val_loss)
-                    print(f"Train loss: {avg_train_loss}")
-                    print(f"Validation loss: {avg_val_loss}")
+                    log(f"Train loss: {avg_train_loss}", local_rank)
+                    log(f"Validation loss: {avg_val_loss}", local_rank)
 
                     # log to tensorboard
                     if cfg.tensorboard_log_dir:
@@ -214,14 +206,11 @@ def train(cfg: TrainingConfig) -> None:
     # for faster development iteration loop.
     except KeyboardInterrupt:
         pass
-
     finally:
         if cfg.save_checkpoint:
             save_checkpoint(cfg, epoch, model, optim)
         if cfg.plot_learning_curves:
             plot_learning_curves(train_losses, val_losses)
-        if cfg.multi_node or cfg.multi_gpu:
-            torch.distributed.destroy_process_group()
 
 
 @torch.no_grad()
@@ -244,17 +233,11 @@ def estimate_loss(model: nn.Module,
         # remove first token for targets so the target seq is offset from input by 1
         decoder_targets = decoder_targets[:, 1:].to(device)
 
-        if cfg.debug:
-            print('decoder targets min', decoder_targets.min().item(), 'max', decoder_targets.max().item())
-
         # create padding masks to ensure model doesn't attend to padding tokens
         encoder_padding_mask = (encoder_input == ignore_index).to(device) # (B,T)
         decoder_padding_mask = (decoder_input == ignore_index).to(device) # (B,T)
 
         logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
-
-        if cfg.debug:
-            print('logits min', logits.min().item(), 'max', logits.max().item(), 'mean', logits.mean().item())
 
         # flatten predicted probs and targets for cross entropy loss
         B,T,C = logits.shape

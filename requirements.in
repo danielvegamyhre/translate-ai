@@ -6,3 +6,4 @@ pandas
 matplotlib
 accelerate
 wandb
+tensorboard
