@@ -208,7 +208,7 @@ def train(cfg: TrainingConfig) -> None:
                 # save checkpoint if specified
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
-                    save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
+                    save_checkpoint(cfg, epoch, model, optim)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
     # for faster development iteration loop.
@@ -217,7 +217,7 @@ def train(cfg: TrainingConfig) -> None:
 
     finally:
         if cfg.save_checkpoint:
-            save_checkpoint(cfg.save_checkpoint, epoch, cfg, model, optim)
+            save_checkpoint(cfg, epoch, model, optim)
         if cfg.plot_learning_curves:
             plot_learning_curves(train_losses, val_losses)
         if cfg.multi_node or cfg.multi_gpu:

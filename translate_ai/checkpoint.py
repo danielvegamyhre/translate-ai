@@ -6,11 +6,8 @@ from torch.optim.optimizer import Optimizer
 
 from config import TrainingConfig
 
-def save_checkpoint(path: str, 
-                    epoch: int, 
-                    cfg: TrainingConfig, 
-                    model: nn.Module, 
-                    optim: Optimizer):
+def save_checkpoint(cfg: TrainingConfig, epoch: int, model: nn.Module, optim: Optimizer):
+    path = cfg.save_checkpoint
     print(f'checkpointing to {path}') 
     torch.save({
             'epoch': epoch,
