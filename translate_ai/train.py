@@ -24,14 +24,17 @@ SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
 
 
 def train(cfg: TrainingConfig) -> None:
-    # configure device
-    device = _get_device(cfg.rank)
+    # configure accelerator
+    accelerator = Accelerator(
+        mixed_precision=args.mixed_precision,
+    )
+    device = accelerator.device
     print("device: ", device)
 
     # distributed training
-    if args.multi_gpu or args.multi_node:
-        backend = "nccl" if torch.cuda.is_available() else "gloo"
-        torch.distributed.init_process_group(backend=backend, init_method=args.dist_url, world_size=cfg.world_size, rank=cfg.rank)
+    # if args.multi_gpu or args.multi_node:
+    #     backend = "nccl" if torch.cuda.is_available() else "gloo"
+    #     torch.distributed.init_process_group(backend=backend, init_method=args.dist_url, world_size=cfg.world_size, rank=cfg.rank)
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -57,9 +60,9 @@ def train(cfg: TrainingConfig) -> None:
 
     # initalize dataloaders
     train_sampler, val_sampler = None, None
-    if args.multi_node or args.multi_gpu:
-        train_sampler = DistributedSampler(train_dataset, cfg.world_size, cfg.rank)
-        val_sampler = DistributedSampler(val_dataset, cfg.world_size, cfg.rank)
+    # if args.multi_node or args.multi_gpu:
+    #     train_sampler = DistributedSampler(train_dataset, cfg.world_size, cfg.rank)
+    #     val_sampler = DistributedSampler(val_dataset, cfg.world_size, cfg.rank)
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, sampler=train_sampler)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, sampler=val_sampler)
 
@@ -76,10 +79,10 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=cfg.seq_len,
         max_output_tokens=cfg.max_output_tokens).to(device)
 
-    if args.multi_node:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.rank])
-    elif args.multi_gpu:
-        model = torch.nn.DataParallel(model, device_ids=[cfg.rank])
+    # if args.multi_node:
+    #     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.rank])
+    # elif args.multi_gpu:
+    #     model = torch.nn.DataParallel(model, device_ids=[cfg.rank])
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f"model parameters: {total_params}")
@@ -90,9 +93,6 @@ def train(cfg: TrainingConfig) -> None:
     lr_scheduler = NoamLR(optim, cfg.warmup_steps)
 
     # configure mixed precision training
-    accelerator = Accelerator(
-        mixed_precision=args.mixed_precision,
-    )
     weight_dtype = torch.float32
     if accelerator.mixed_precision == "fp16":
         weight_dtype = torch.float16
