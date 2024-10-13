@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import os
 import torch
 from torch import nn
 from torch.optim.optimizer import Optimizer
@@ -8,7 +8,11 @@ from config import TrainingConfig
 
 def save_checkpoint(cfg: TrainingConfig, epoch: int, model: nn.Module, optim: Optimizer):
     path = cfg.save_checkpoint
-    print(f'checkpointing to {path}') 
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+
+    print(f'checkpointing to {path}')
     torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
