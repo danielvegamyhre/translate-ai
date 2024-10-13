@@ -29,6 +29,9 @@ def train(cfg: TrainingConfig) -> None:
     accelerator = Accelerator(
         mixed_precision=args.mixed_precision,
     )
+    accelerator.print(f"Rank {accelerator.process_index} is running with world size {accelerator.state.world_size}")
+
+
     device = accelerator.device
     local_rank = accelerator.local_process_index
     global_rank = accelerator.process_index
@@ -250,15 +253,6 @@ def estimate_loss(model: nn.Module,
         losses[i] = loss
     return losses.mean()
 
-def _get_device(rank: int):
-    if torch.cuda.is_available():
-        device = torch.device(f"cuda:{rank}")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
-    return device 
-
 def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
@@ -269,6 +263,12 @@ def _validate_args(args: Namespace) -> None:
     if (args.multi_node and not args.dist_url) or (args.dist_url and not args.multi_node):
         raise ValueError(f"--multi-node and --dist-url must both be set if one is set")
 
+def _init_debug_config():
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "1" 
+    os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
+    os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
@@ -321,6 +321,8 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     _validate_args(args)
+    if args.debug:
+        _init_debug_config()
 
     cfg = TrainingConfig(
         # hyperparams
