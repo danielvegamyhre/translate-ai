@@ -7,7 +7,7 @@ from tqdm import tqdm
 import torch
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import DataLoader, DistributedSampler, random_split
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 import tiktoken
 from accelerate import Accelerator
@@ -106,6 +106,7 @@ def train(cfg: TrainingConfig) -> None:
 
     # configure wandb
     if cfg.wandb_project:
+        log(f"initializing wandb project {cfg.wandb_project}", local_rank)
         wandb.login(key=cfg.wandb_api_key)
         wandb.init(project=cfg.wandb_project, 
                    config={
