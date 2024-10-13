@@ -106,16 +106,17 @@ def train(cfg: TrainingConfig) -> None:
 
     # configure wandb
     if cfg.wandb_project:
-        wandb.init(project=cfg.wandb_project, config={
-            "learning_rate": cfg.learning_rate,
-            "epochs": cfg.epochs,
-            "batch_size": cfg.batch_size,
-            "num_layers:": cfg.num_layers,
-            "num_attention_heads": cfg.num_attention_heads,
-            "embed_dim": cfg.embed_dim,
-            "d_model": cfg.d_model,
-            "total_params": total_params,
-        })
+        wandb.login(key=cfg.wandb_api_key)
+        wandb.init(project=cfg.wandb_project, 
+                   config={
+                       "learning_rate": cfg.learning_rate,
+                       "epochs": cfg.epochs,
+                       "batch_size": cfg.batch_size,
+                       "num_layers:": cfg.num_layers,
+                       "num_attention_heads": cfg.num_attention_heads,
+                       "embed_dim": cfg.embed_dim,
+                       "d_model": cfg.d_model,
+                       "total_params": total_params})
         wandb.watch(model, log="all")
 
     # configure tensorboard
@@ -305,6 +306,7 @@ if __name__ == '__main__':
     # observability
     argparser.add_argument("--tensorboard-log-dir", type=str)
     argparser.add_argument("--wandb-project", type=str)
+    argparser.add_argument("--wandb-api-key", type=str)
     argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
     argparser.add_argument("--debug", action="store_true", default=False)
 
@@ -363,6 +365,7 @@ if __name__ == '__main__':
         plot_learning_curves=args.plot_learning_curves,
         tensorboard_log_dir=args.tensorboard_log_dir,
         wandb_project=args.wandb_project,
+        wandb_api_key=args.wandb_api_key,
         debug=args.debug,
     )
     train(cfg)

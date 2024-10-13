@@ -45,5 +45,6 @@ class TrainingConfig:
     # observability and debugging
     tensorboard_log_dir: str
     wandb_project: str
+    wandb_api_key: str
     plot_learning_curves: bool
     debug: bool
