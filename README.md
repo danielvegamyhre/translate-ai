@@ -13,7 +13,8 @@ English to Spanish translation model with custom [Datasets](https://github.com/d
 - [Noam learning rate scheduler](https://nn.labml.ai/optimizers/noam.html)
 - Configurable hyperparams (batch size, epochs, learning rate, warmup steps)
 - Configurable model dimensions (number of layers, embed dim, d-model, feedforward dim, number of attention heads, sequence length, max output sequence length)
-- Configurable acceleration (mixed precision training, device type) 
+- Configurable acceleration (mixed precision training, device type)
+    - Support for [accelerate](https://huggingface.co/docs/accelerate/en/index)
 - Auto-checkpointing support
 - Observability
     - [Tensorboard](https://www.tensorflow.org/tensorboard) support
