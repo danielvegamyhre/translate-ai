@@ -20,40 +20,47 @@ English to Spanish translation model with custom [Datasets](https://github.com/d
     - [Tensorboard](https://www.tensorflow.org/tensorboard) support
     - [Weights and Biases](https://wandb.ai/site/) support
 
-### Usage
-```
-usage: train.py [-h] [--epochs EPOCHS] [--learning-rate LEARNING_RATE] [--warmup-steps WARMUP_STEPS] [--batch-size BATCH_SIZE]
-                [--mixed-precision MIXED_PRECISION] [--device DEVICE] [--num-layers NUM_LAYERS] [--embed-dim EMBED_DIM]
-                [--ffwd-dim FFWD_DIM] [--d-model D_MODEL] [--num-attention-heads NUM_ATTENTION_HEADS] [--seq-len SEQ_LEN]
-                [--max-output-tokens MAX_OUTPUT_TOKENS] [--eval-interval EVAL_INTERVAL] [--eval-iters EVAL_ITERS]
-                [--checkpoint-interval CHECKPOINT_INTERVAL] [--load-checkpoint LOAD_CHECKPOINT] [--save-checkpoint SAVE_CHECKPOINT]
-                [--dataset-file DATASET_FILE] [--dataset-dir DATASET_DIR] [--tensorboard-log-dir TENSORBOARD_LOG_DIR]
-                [--wandb-project WANDB_PROJECT] [--plot-learning-curves] [--debug]
+### Quickstart
 
-options:
-  -h, --help            show this help message and exit
-  --epochs EPOCHS
-  --learning-rate LEARNING_RATE
-  --warmup-steps WARMUP_STEPS
-  --batch-size BATCH_SIZE
-  --mixed-precision MIXED_PRECISION
-  --device DEVICE
-  --num-layers NUM_LAYERS
-  --embed-dim EMBED_DIM
-  --ffwd-dim FFWD_DIM
-  --d-model D_MODEL
-  --num-attention-heads NUM_ATTENTION_HEADS
-  --seq-len SEQ_LEN
-  --max-output-tokens MAX_OUTPUT_TOKENS
-  --eval-interval EVAL_INTERVAL
-  --eval-iters EVAL_ITERS
-  --checkpoint-interval CHECKPOINT_INTERVAL
-  --load-checkpoint LOAD_CHECKPOINT
-  --save-checkpoint SAVE_CHECKPOINT
-  --dataset-file DATASET_FILE
-  --dataset-dir DATASET_DIR
-  --tensorboard-log-dir TENSORBOARD_LOG_DIR
-  --wandb-project WANDB_PROJECT
-  --plot-learning-curves
-  --debug
+Install requirements:
+```
+python3 -m pip install -r requirements.txt
+```
+
+Kick off training run
+
+
+### Training
+
+`train.sh` includes generic template for kicking off a simple training run using accelerate.
+
+Example:
+```
+accelerate launch translate_ai/train.py \
+    --dataset-file data/english-spanish.csv \
+    --device mps \
+    --epochs 1 \
+    --learning-rate .001 \
+    --batch-size 2 \
+    --num-layers 2 \
+    --embed-dim 128 \
+    --d-model 128 \
+    --ffwd-dim 512 \
+    --seq-len 128 \
+    --max-output-tokens 128 \
+    --eval-interval 100 \
+    --eval-iters 10 \
+    --checkpoint-interval 100 \
+    --save-checkpoint checkpoints/chkpt.pt \
+    --wandb-project dvm
   ```
+
+### Inference
+
+Example: 
+
+```
+python3 translate_ai/translate.py --english-query "The cat is blue." --checkpoint-file checkpoints/chkpt.pt
+...
+"El gato es azul."
+```
