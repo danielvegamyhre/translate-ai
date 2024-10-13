@@ -7,6 +7,21 @@ import torch.nn.functional as F
 from datasets import TokenizerInterface
 
 class MultiUNDataset(Dataset):
+    """
+    Custom dataset for MultiUN translation dataset: https://opus.nlpl.eu/legacy/MultiUN.php
+
+    This class assumes you have followed the instructions on the site to extract the raw
+    text from the XML files, and have placed all the *_en.snt and *_es.snt files in the
+    same directory for processing.
+
+    Args:
+        root_dir: directory with all the *_en.snt and *_es.snt files from the MultiUN dataset.
+        tokenizer: tokenizer object which implements the TokenizerInterface interface
+        max_length: max number of tokens to parse from each file to construct a training example
+        pad_token: special token to use for padding
+        begin_text_token: special token to indicate the beginning of a training document/example
+        end_text_token: special token to indicate the end of a training document/example
+    """
     def __init__(self, 
                  root_dir: str, 
                  tokenizer: TokenizerInterface, 

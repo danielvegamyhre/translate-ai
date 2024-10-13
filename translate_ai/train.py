@@ -20,6 +20,8 @@ from plotting import plot_learning_curves
 from scheduler import NoamLR
 from config import TrainingConfig
 
+SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
+
 
 def train(cfg: TrainingConfig) -> None:
     # set up tensorboard_log_dir
@@ -252,8 +254,8 @@ def estimate_loss(model: nn.Module,
 def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
-    if args.mixed_precision and args.mixed_precision not in {"fp16","bf16"}:
-        raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: 'fp16', 'bf16'")
+    if args.mixed_precision and args.mixed_precision not in SUPPORTED_MIXED_PRECISION_DTYPES:
+        raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: {SUPPORTED_MIXED_PRECISION_DTYPES}")
 
 if __name__ == '__main__':
     argparser = ArgumentParser()

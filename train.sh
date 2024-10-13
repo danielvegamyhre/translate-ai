@@ -2,7 +2,7 @@
 accelerate launch translate_ai/train.py \
     --dataset-file=data/english-spanish.csv \
     --device=mps \
-    --epochs 1 \
+    --epochs 10 \
     --learning-rate .001 \
     --save-checkpoint checkpoints/chkpt.pt \
     --eval-interval 100 \
