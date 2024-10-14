@@ -1,10 +1,11 @@
 #!/bin/bash
-accelerate launch translate_ai/train.py \
+torchrun --nproc_per_node=2 --master_port=12345 translate_ai/train.py \
     --dataset-file data/english-spanish.csv \
     --device cuda \
+    --mixed-precision bf16 \
     --epochs 10 \
-    --learning-rate .001 \
-    --batch-size 64 \
+    --learning-rate .004 \
+    --batch-size 128 \
     --num-layers 2 \
     --embed-dim 128 \
     --d-model 128 \
@@ -17,5 +18,4 @@ accelerate launch translate_ai/train.py \
     --save-checkpoint checkpoints/chkpt.pt \
     --wandb-project dvm \
     --wandb-api-key ${WANDB_API_KEY} \
-    --multi-gpu \
-    --world-size 2
+    --distributed
