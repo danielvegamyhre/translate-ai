@@ -25,3 +25,18 @@ def load_checkpoint(path: str) -> dict:
     checkpoint = torch.load(path)
     print(f'loaded checkpoint from {path}')
     return checkpoint
+
+def load_state_dict(model: nn.Module, checkpoint: dict) -> None:
+    state_dict = checkpoint['model_state_dict']
+    new_state_dict = {}
+    for key in state_dict.keys():
+        # models trained with DDP will have a 'module.' prefix
+        # on the state dict keys that need to be removed in order
+        # to restore the checkpoint.
+        if key.startswith("module."):
+            new_key = key[len("module."):]
+            new_state_dict[new_key] = state_dict[key]
+        else:
+            new_state_dict[key] = state_dict[key]
+
+    model.load_state_dict(new_state_dict)

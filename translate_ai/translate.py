@@ -9,7 +9,7 @@ import tiktoken
 from tqdm import tqdm
 
 from transformer import TransformerTranslator
-from checkpoint import load_checkpoint
+from checkpoint import load_checkpoint, load_state_dict
 from config import TrainingConfig
 
 def translate(english_query: str, checkpoint_file: str) -> str:
@@ -48,7 +48,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
     model = model.to(cfg.device)
     
     # load checkpoint
-    model.load_state_dict(checkpoint['model_state_dict'])
+    load_state_dict(model, checkpoint)
     model.eval()
 
     # run input query through encoder to get encoder output / context
