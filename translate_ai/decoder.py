@@ -107,13 +107,14 @@ class CrossAttentionHead(nn.Module):
     
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
         # queries come from previous decoder layer
-        # B,T,H @ H,H -> B,T,H
+        # B,T,H @ H,head_dim -> B,T,head_dim
         queries = self.q(x) 
 
         # keys and values come from encoder output
-        # B,T,H -> B,T,H
+        # B,T,H @ H,head_dim -> B,T,head_dim
         keys = self.k(encoder_out)
-        # B,T,H -> B,T,H
+        
+        # B,T,H @ H,head_dim -> B,T,head_dim
         values = self.v(encoder_out)
 
         # decoder queries can attend to all parts of the encoder output

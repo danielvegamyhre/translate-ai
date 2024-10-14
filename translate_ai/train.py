@@ -32,7 +32,7 @@ from config import (
     _get_dist_configs
 )
 
-HARDWARE_PEAK_FLOPS_PER_SECOND = 149.7 ** 12 # NVIDIA A40
+HARDWARE_PEAK_FLOPS_PER_SECOND = 149e12 # NVIDIA A40
 
 @record
 def train(cfg: TrainingConfig) -> None:
@@ -93,8 +93,10 @@ def train(cfg: TrainingConfig) -> None:
         # wrap model in DDP and configure the device the code will be operating
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
 
+    # get model param count
+    param_counts = parameter_count(model)
     total_params_key = '' # https://detectron2.readthedocs.io/en/latest/modules/fvcore.html#fvcore.nn.parameter_count
-    total_params = parameter_count(model)[total_params_key]
+    total_params = param_counts[total_params_key]
     log(f"model parameters: {total_params}", local_rank)
 
     # set up optimizer and learning rate scheduler 
@@ -218,14 +220,13 @@ def train(cfg: TrainingConfig) -> None:
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
                     save_checkpoint(cfg, epoch, model, optim)
-                    
+                
             # estimate MFU after each epoch
             epoch_duration = perf_counter() - start_time
             steps_per_epoch = len(train_loader)
             steps_per_second = epoch_duration / steps_per_epoch
 
-            inputs = (encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
-            mfu = estimate_mfu(cfg, model, inputs, steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
+            mfu = estimate_mfu(cfg, param_counts['encoder'], param_counts['decoder'], steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
             log(f"Esimated MFU: {mfu:.4f}", local_rank)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
