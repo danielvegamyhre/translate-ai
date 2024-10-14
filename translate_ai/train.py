@@ -11,7 +11,7 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import DataLoader, DistributedSampler, Dataset, random_split
+from torch.utils.data import DataLoader, DistributedSampler, random_split
 from torch.utils.tensorboard import SummaryWriter
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -32,7 +32,7 @@ from config import (
     _get_dist_configs
 )
 
-HARDWARE_PEAK_FLOPS_PER_SECOND = 149.7 # NVIDIA A40
+HARDWARE_PEAK_FLOPS_PER_SECOND = 149.7 ** 12 # NVIDIA A40
 
 @record
 def train(cfg: TrainingConfig) -> None:
