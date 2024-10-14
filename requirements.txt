@@ -32,6 +32,8 @@ fsspec==2024.9.0
     # via
     #   huggingface-hub
     #   torch
+fvcore==0.1.5.post20221221
+    # via -r requirements.in
 gitdb==4.0.11
     # via gitpython
 gitpython==3.1.43
@@ -42,6 +44,8 @@ huggingface-hub==0.25.2
     # via accelerate
 idna==3.10
     # via requests
+iopath==0.1.10
+    # via fvcore
 jinja2==3.1.4
     # via torch
 kiwisolver==1.4.7
@@ -63,6 +67,7 @@ numpy==2.1.1
     #   -r requirements.in
     #   accelerate
     #   contourpy
+    #   fvcore
     #   matplotlib
     #   pandas
     #   tensorboard
@@ -75,9 +80,13 @@ packaging==24.1
 pandas==2.2.3
     # via -r requirements.in
 pillow==10.4.0
-    # via matplotlib
+    # via
+    #   fvcore
+    #   matplotlib
 platformdirs==4.3.6
     # via wandb
+portalocker==2.10.1
+    # via iopath
 protobuf==5.28.2
     # via
     #   tensorboard
@@ -97,8 +106,10 @@ pytz==2024.2
 pyyaml==6.0.2
     # via
     #   accelerate
+    #   fvcore
     #   huggingface-hub
     #   wandb
+    #   yacs
 regex==2024.9.11
     # via tiktoken
 requests==2.32.3
@@ -121,10 +132,14 @@ smmap==5.0.1
     # via gitdb
 sympy==1.13.3
     # via torch
+tabulate==0.9.0
+    # via fvcore
 tensorboard==2.18.0
     # via -r requirements.in
 tensorboard-data-server==0.7.2
     # via tensorboard
+termcolor==2.5.0
+    # via fvcore
 tiktoken==0.7.0
     # via -r requirements.in
 torch==2.4.1
@@ -134,10 +149,13 @@ torch==2.4.1
 tqdm==4.66.5
     # via
     #   -r requirements.in
+    #   fvcore
     #   huggingface-hub
+    #   iopath
 typing-extensions==4.12.2
     # via
     #   huggingface-hub
+    #   iopath
     #   torch
 tzdata==2024.1
     # via pandas
@@ -149,6 +167,8 @@ wandb==0.18.3
     # via -r requirements.in
 werkzeug==3.0.4
     # via tensorboard
+yacs==0.1.8
+    # via fvcore
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

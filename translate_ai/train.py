@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from argparse import ArgumentParser, Namespace
 from tqdm import tqdm
+from time import perf_counter
 
 import torch
 import torch.distributed as dist
@@ -16,24 +17,22 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 import tiktoken
 import wandb
+from fvcore.nn import parameter_count
 
 from transformer import TransformerTranslator
 from datasets.english_spanish import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
+from perf_analysis import estimate_mfu
 from utils import log
 from config import (
     TrainingConfig,
-    LOCAL_RANK,
-    RANK,
-    WORLD_SIZE,
-    LOCAL_WORLD_SIZE,
-    MASTER_ADDR,
-    MASTER_PORT,
     SUPPORTED_MIXED_PRECISION_DTYPES,
     _get_dist_configs
 )
+
+HARDWARE_PEAK_FLOPS_PER_SECOND = 149.7 # NVIDIA A40
 
 @record
 def train(cfg: TrainingConfig) -> None:
@@ -93,10 +92,10 @@ def train(cfg: TrainingConfig) -> None:
     if cfg.distributed:
         # wrap model in DDP and configure the device the code will be operating
         model = DDP(model, device_ids=[local_rank], output_device=local_rank)
-        
-    total_params = sum(p.numel() for p in model.parameters())
+
+    total_params_key = '' # https://detectron2.readthedocs.io/en/latest/modules/fvcore.html#fvcore.nn.parameter_count
+    total_params = parameter_count(model)[total_params_key]
     log(f"model parameters: {total_params}", local_rank)
-    log(f"num layers: {cfg.num_layers}", local_rank)
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
@@ -149,6 +148,8 @@ def train(cfg: TrainingConfig) -> None:
                 train_sampler.set_epoch(epoch)
             if val_sampler is not None:
                 val_sampler.set_epoch(epoch)
+
+            start_time = perf_counter()    
             for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
                 encoder_input = encoded_inputs.to(device)
 
@@ -217,6 +218,14 @@ def train(cfg: TrainingConfig) -> None:
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
                     save_checkpoint(cfg, epoch, model, optim)
+            
+            epoch_duration = perf_counter() - start_time
+            steps_per_epoch = len(train_loader)
+            steps_per_second = epoch_duration / steps_per_epoch
+
+            # estimate MFU after each epoch
+            mfu = estimate_mfu(model, (B,T), steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
+            log(f"Esimated MFU: {mfu:.4f}", local_rank)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
     # for faster development iteration loop.
