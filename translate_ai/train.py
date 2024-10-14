@@ -218,13 +218,14 @@ def train(cfg: TrainingConfig) -> None:
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
                     save_checkpoint(cfg, epoch, model, optim)
-            
+                    
+            # estimate MFU after each epoch
             epoch_duration = perf_counter() - start_time
             steps_per_epoch = len(train_loader)
             steps_per_second = epoch_duration / steps_per_epoch
 
-            # estimate MFU after each epoch
-            mfu = estimate_mfu(model, (B,T), steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
+            inputs = (encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
+            mfu = estimate_mfu(cfg, model, inputs, steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
             log(f"Esimated MFU: {mfu:.4f}", local_rank)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
