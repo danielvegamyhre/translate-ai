@@ -97,7 +97,9 @@ def train(cfg: TrainingConfig) -> None:
     param_counts = parameter_count(model)
     total_params_key = '' # https://detectron2.readthedocs.io/en/latest/modules/fvcore.html#fvcore.nn.parameter_count
     total_params = param_counts[total_params_key]
-    log(f"model parameters: {total_params}", local_rank)
+    log(f"total model parameters: {total_params}", local_rank)
+    log(f"encoder parameters: {param_counts['encoder']}")
+    log(f"decoder parameters: {param_counts['decoder']}") 
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
