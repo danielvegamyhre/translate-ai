@@ -14,6 +14,4 @@ accelerate launch translate_ai/train.py \
     --eval-interval 100 \
     --eval-iters 10 \
     --checkpoint-interval 100 \
-    --save-checkpoint checkpoints/chkpt.pt \
-    --wandb-project dvm \
-    --wandb-api-key ${WANDB_API_KEY}
+    --save-checkpoint checkpoints/chkpt.pt

@@ -5,12 +5,16 @@ from argparse import ArgumentParser, Namespace
 from tqdm import tqdm
 
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch import nn
 from torch.nn import functional as f
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, DistributedSampler, Dataset, random_split
 from torch.utils.tensorboard import SummaryWriter
+from torch.distributed.elastic.multiprocessing.errors import record
+
 import tiktoken
-from accelerate import Accelerator
 import wandb
 
 from transformer import TransformerTranslator
@@ -18,26 +22,28 @@ from datasets.english_spanish import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
-from config import TrainingConfig
 from utils import log
+from config import (
+    TrainingConfig,
+    LOCAL_RANK,
+    RANK,
+    WORLD_SIZE,
+    LOCAL_WORLD_SIZE,
+    MASTER_ADDR,
+    MASTER_PORT,
+    SUPPORTED_MIXED_PRECISION_DTYPES,
+    _get_dist_configs
+)
 
-SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
-
-
+@record
 def train(cfg: TrainingConfig) -> None:
-    # configure accelerator
-    accelerator = Accelerator(
-        mixed_precision=args.mixed_precision,
-    )
-    accelerator.print(f"Rank {accelerator.process_index} is running with world size {cfg.world_size}")
+    device = torch.device(cfg.device)
 
-
-    device = accelerator.device
-    local_rank = accelerator.local_process_index
-    global_rank = accelerator.process_index
-    log(f"device: {device}", local_rank)
-    log(f"local rank: {local_rank}", local_rank)
-    log(f"global rank: {global_rank}", local_rank)
+    # set up distributed training
+    local_rank = 0
+    if cfg.distributed:
+        _setup_distributed_training()
+        local_rank = dist.get_rank()
 
     # initialize tokenizer
     tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -63,8 +69,13 @@ def train(cfg: TrainingConfig) -> None:
 
     # initalize dataloaders
     train_sampler, val_sampler = None, None
-    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=True, sampler=train_sampler)
-    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=False, sampler=val_sampler)
+    shuffle = True
+    if cfg.distributed:
+        train_sampler = DistributedSampler(train_dataset)
+        val_sampler = DistributedSampler(val_dataset)
+        shuffle = False
+    train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=shuffle, sampler=train_sampler)
+    val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=shuffle, sampler=val_sampler)
 
     # initialize model
     model = TransformerTranslator(
@@ -79,6 +90,10 @@ def train(cfg: TrainingConfig) -> None:
         max_seq_len=cfg.seq_len,
         max_output_tokens=cfg.max_output_tokens).to(device)
 
+    if cfg.distributed:
+        # wrap model in DDP and configure the device the code will be operating
+        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        
     total_params = sum(p.numel() for p in model.parameters())
     log(f"model parameters: {total_params}", local_rank)
     log(f"num layers: {cfg.num_layers}", local_rank)
@@ -89,15 +104,11 @@ def train(cfg: TrainingConfig) -> None:
 
     # configure mixed precision training
     weight_dtype = torch.float32
-    if accelerator.mixed_precision == "fp16":
+    if cfg.mixed_precision == "fp16":
         weight_dtype = torch.float16
-    elif accelerator.mixed_precision == "bf16":
+    elif cfg.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
     model = model.to(weight_dtype)
-
-    model, optim, lr_scheduler, train_loader = accelerator.prepare(
-        model, optim, lr_scheduler, train_loader 
-    )
 
     # load checkpoint
     curr_epoch = 0
@@ -133,7 +144,7 @@ def train(cfg: TrainingConfig) -> None:
     try:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
-            # make sure data shuffling it different between epochs
+            # make sure data shuffling it different between epochs for distributed sampler
             if train_sampler is not None:
                 train_sampler.set_epoch(epoch)
             if val_sampler is not None:
@@ -169,7 +180,7 @@ def train(cfg: TrainingConfig) -> None:
                 if cfg.debug:
                     log(f"epoch: {epoch}, step: {step}, loss: {loss}", local_rank)
 
-                accelerator.backward(loss)
+                loss.backward()
                 optim.step()
                 lr_scheduler.step()
                 optim.zero_grad(set_to_none=True)
@@ -216,6 +227,8 @@ def train(cfg: TrainingConfig) -> None:
             save_checkpoint(cfg, epoch, model, optim)
         if cfg.plot_learning_curves:
             plot_learning_curves(train_losses, val_losses)
+        if cfg.distributed:
+            _dist_cleanup()
 
 
 @torch.no_grad()
@@ -253,15 +266,17 @@ def estimate_loss(model: nn.Module,
         losses[i] = loss
     return losses.mean()
 
+
 def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
     if args.mixed_precision and args.mixed_precision not in SUPPORTED_MIXED_PRECISION_DTYPES:
         raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: {SUPPORTED_MIXED_PRECISION_DTYPES}")
-    if args.multi_gpu and args.multi_node:
-        raise ValueError(f"only one of --multi-gpu and --multi-node can be specified")
-    if (args.multi_node and not args.dist_url) or (args.dist_url and not args.multi_node):
-        raise ValueError(f"--multi-node and --dist-url must both be set if one is set")
+    if args.distributed:
+        dist_configs: dict = _get_dist_configs()
+        for env_var, value in dist_configs.items():
+            if value is None:
+                raise ValueError(f"environment variable {env_var} must be set for torch distributed training")
 
 def _init_debug_config():
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -269,6 +284,18 @@ def _init_debug_config():
     os.environ["NCCL_DEBUG"] = "INFO"
     os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
     os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
+
+def _setup_distributed_training(local_rank: int):
+    # initialize the process group (NCCL backend is for GPUs, GLOO for CPUs)
+    backend = 'nccl' if torch.cuda.is_available() else 'gloo'
+    dist.init_process_group(backend=backend, init_method='env://')
+
+    # ensure one process per GPU
+    torch.cuda.set_device(local_rank)
+
+def _dist_cleanup():
+    dist.destroy_process_group()
+
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
@@ -312,11 +339,7 @@ if __name__ == '__main__':
     argparser.add_argument("--debug", action="store_true", default=False)
 
     # distributed training
-    argparser.add_argument('--multi-gpu', action='store_true', help="single node multi-GPU training with data parallelism")
-    argparser.add_argument('--multi-node', action='store_true', help="multi-node multi-GPU training with distributed data parallelism")
-    argparser.add_argument('--dist-url', type=str, help="rendezvous url for multi-node training")
-    argparser.add_argument('--world-size', default=1, type=int, help="number of processes (chips) participating in the training job")
-    argparser.add_argument('--rank', default=0, type=int, help="rank (id) of the current worker")
+    argparser.add_argument('--distributed', action='store_true', help="multi-GPU or multi-node training with distributed data parallelism")
 
     args = argparser.parse_args()
 
@@ -358,11 +381,7 @@ if __name__ == '__main__':
         dataset_dir=args.dataset_dir,
 
         # distributed training
-        multi_gpu=args.multi_gpu,
-        multi_node=args.multi_node,
-        world_size=args.world_size,
-        rank=args.rank,
-        dist_url=args.dist_url,
+        distributed=args.distributed,
 
         # observability and debugging
         plot_learning_curves=args.plot_learning_curves,

@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
+import os
 from dataclasses import dataclass
+
+# env vars automatically set by torchrun for distributed training
+LOCAL_RANK = "LOCAL_RANK"
+RANK = "RANK"
+WORLD_SIZE = "WORLD_SIZE"
+LOCAL_WORLD_SIZE = "LOCAL_WORLD_SIZE"
+MASTER_ADDR = "MASTER_ADDR"
+MASTER_PORT = "MASTER_PORT"
+
+SUPPORTED_MIXED_PRECISION_DTYPES = {"fp16","bf16"}
 
 @dataclass
 class TrainingConfig:
@@ -36,11 +47,7 @@ class TrainingConfig:
     dataset_dir: str
 
     # distributed training
-    multi_gpu: bool
-    multi_node: bool
-    world_size: int
-    dist_url: str
-    rank: int
+    distributed: bool
 
     # observability and debugging
     tensorboard_log_dir: str
@@ -48,3 +55,20 @@ class TrainingConfig:
     wandb_api_key: str
     plot_learning_curves: bool
     debug: bool
+
+
+def _get_dist_configs():
+    local_rank = int(os.environ.get(LOCAL_RANK))
+    global_rank = int(os.environ.get(RANK))
+    world_size = int(os.environ.get(WORLD_SIZE))
+    local_world_size = int(os.environ.get(LOCAL_WORLD_SIZE))
+    master_addr = os.environ.get(MASTER_ADDR)
+    master_port = os.environ.get(MASTER_PORT)
+    return {
+        LOCAL_RANK: local_rank,
+        RANK: global_rank,
+        WORLD_SIZE: world_size,
+        LOCAL_WORLD_SIZE: local_world_size,
+        MASTER_ADDR: master_addr,
+        MASTER_PORT: master_port,
+    }
