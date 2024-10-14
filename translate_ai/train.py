@@ -285,13 +285,13 @@ def _init_debug_config():
     os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
     os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
-def _setup_distributed_training(local_rank: int):
+def _setup_distributed_training():
     # initialize the process group (NCCL backend is for GPUs, GLOO for CPUs)
     backend = 'nccl' if torch.cuda.is_available() else 'gloo'
     dist.init_process_group(backend=backend, init_method='env://')
 
     # ensure one process per GPU
-    torch.cuda.set_device(local_rank)
+    torch.cuda.set_device(dist.get_rank())
 
 def _dist_cleanup():
     dist.destroy_process_group()
