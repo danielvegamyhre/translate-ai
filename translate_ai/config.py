@@ -49,6 +49,10 @@ class TrainingConfig:
     # distributed training
     distributed: bool
 
+    # performance analysis
+    estimate_mfu: bool
+    hardware_peak_tflops: float
+
     # observability and debugging
     tensorboard_log_dir: str
     wandb_project: str

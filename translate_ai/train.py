@@ -24,7 +24,7 @@ from datasets.english_spanish import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
-from perf_analysis import estimate_mfu
+from perf_analysis import run_perf_analysis
 from utils import log
 from config import (
     TrainingConfig,
@@ -98,8 +98,6 @@ def train(cfg: TrainingConfig) -> None:
     total_params_key = '' # https://detectron2.readthedocs.io/en/latest/modules/fvcore.html#fvcore.nn.parameter_count
     total_params = param_counts[total_params_key]
     log(f"total model parameters: {total_params}", local_rank)
-    log(f"encoder parameters: {param_counts['encoder']}")
-    log(f"decoder parameters: {param_counts['decoder']}") 
 
     # set up optimizer and learning rate scheduler 
     optim = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate)
@@ -112,6 +110,11 @@ def train(cfg: TrainingConfig) -> None:
     elif cfg.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
     model = model.to(weight_dtype)
+
+    # performance analysis
+    if cfg.estimate_mfu:
+        run_perf_analysis(model, cfg, train_loader, optim, lr_scheduler, device=device, pad_token=pad_token)
+        return
 
     # load checkpoint
     curr_epoch = 0
@@ -153,7 +156,6 @@ def train(cfg: TrainingConfig) -> None:
             if val_sampler is not None:
                 val_sampler.set_epoch(epoch)
 
-            start_time = perf_counter()    
             for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
                 encoder_input = encoded_inputs.to(device)
 
@@ -222,15 +224,6 @@ def train(cfg: TrainingConfig) -> None:
                 is_checkpoint_step = step > 0 and step % cfg.checkpoint_interval == 0
                 if cfg.save_checkpoint and is_checkpoint_step:
                     save_checkpoint(cfg, epoch, model, optim)
-                
-            # estimate MFU after each epoch
-            epoch_duration = perf_counter() - start_time
-            steps_per_epoch = len(train_loader)
-            steps_per_second = steps_per_epoch / epoch_duration
-
-            mfu = estimate_mfu(cfg, param_counts['encoder'], param_counts['decoder'], steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
-            mfu_pct = mfu * 100
-            log(f"Esimated MFU: {mfu_pct:.4f}%", local_rank)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
     # for faster development iteration loop.
@@ -349,11 +342,15 @@ if __name__ == '__main__':
     argparser.add_argument("--tensorboard-log-dir", type=str)
     argparser.add_argument("--wandb-project", type=str)
     argparser.add_argument("--wandb-api-key", type=str)
-    argparser.add_argument("--plot-learning-curves", action="store_true", default=False)
-    argparser.add_argument("--debug", action="store_true", default=False)
+    argparser.add_argument("--plot-learning-curves", action="store_true")
+    argparser.add_argument("--debug", action="store_true")
 
     # distributed training
     argparser.add_argument('--distributed', action='store_true', help="multi-GPU or multi-node training with distributed data parallelism")
+
+    # performance analysis
+    argparser.add_argument("--estimate-mfu", action="store_true", help="estimate MFU then exit")
+    argparser.add_argument("--hardware-peak-tflops", type=float, help="Theoretical peak TFLOPs per second achievable on the hardware.")
 
     args = argparser.parse_args()
 
@@ -396,6 +393,10 @@ if __name__ == '__main__':
 
         # distributed training
         distributed=args.distributed,
+
+        # performance analysis
+        estimate_mfu=args.estimate_mfu,
+        hardware_peak_tflops=args.hardware_peak_tflops,
 
         # observability and debugging
         plot_learning_curves=args.plot_learning_curves,
