@@ -226,7 +226,7 @@ def train(cfg: TrainingConfig) -> None:
             # estimate MFU after each epoch
             epoch_duration = perf_counter() - start_time
             steps_per_epoch = len(train_loader)
-            steps_per_second = epoch_duration / steps_per_epoch
+            steps_per_second = steps_per_epoch / epoch_duration
 
             mfu = estimate_mfu(cfg, param_counts['encoder'], param_counts['decoder'], steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
             mfu_pct = mfu * 100
