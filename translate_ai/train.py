@@ -277,12 +277,15 @@ def _validate_args(args: Namespace) -> None:
     if not args.dataset_file and not args.dataset_dir:
         raise ValueError("--dataset-dir or --dataset-file must be specified")
     if args.mixed_precision and args.mixed_precision not in SUPPORTED_MIXED_PRECISION_DTYPES:
-        raise ValueError(f"unsupported mixed precision data type '{args.mixed_precision}' - must be one of: {SUPPORTED_MIXED_PRECISION_DTYPES}")
+        raise ValueError(f"Unsupported mixed precision data type '{args.mixed_precision}' - must be one of: {SUPPORTED_MIXED_PRECISION_DTYPES}")
     if args.distributed:
         dist_configs: dict = _get_dist_configs()
+        if args.debug:
+            from pprint import pprint
+            pprint(dist_configs)
         for env_var, value in dist_configs.items():
             if value is None:
-                raise ValueError(f"environment variable {env_var} must be set for torch distributed training")
+                raise ValueError(f"Environment variable {env_var} must be set for torch distributed training. Using torchrun is recommended for this.")
 
 def _init_debug_config():
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
