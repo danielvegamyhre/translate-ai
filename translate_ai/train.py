@@ -41,7 +41,7 @@ def train(cfg: TrainingConfig) -> None:
     # set up distributed training
     local_rank = 0
     if cfg.distributed:
-        _setup_distributed_training()
+        _setup_distributed_training(cfg)
         local_rank = dist.get_rank()
 
     # initialize tokenizer
@@ -151,9 +151,8 @@ def train(cfg: TrainingConfig) -> None:
         model.train()
         for epoch in range(curr_epoch, curr_epoch + cfg.epochs):
             # make sure data shuffling it different between epochs for distributed sampler
-            if train_sampler is not None:
+            if cfg.distributed:
                 train_sampler.set_epoch(epoch)
-            if val_sampler is not None:
                 val_sampler.set_epoch(epoch)
 
             for step, (encoded_inputs, encoded_targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
@@ -292,13 +291,18 @@ def _init_debug_config():
     os.environ["TORCH_CPP_LOG_LEVEL"] = "INFO"
     os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
-def _setup_distributed_training():
+def _setup_distributed_training(cfg: TrainingConfig):
+    log(f"initializing process group")
+
     # initialize the process group (NCCL backend is for GPUs, GLOO for CPUs)
     backend = 'nccl' if torch.cuda.is_available() else 'gloo'
     dist.init_process_group(backend=backend, init_method='env://')
 
     # ensure one process per GPU
     torch.cuda.set_device(dist.get_rank())
+
+    if cfg.debug:
+        log(f"successfully initialized process group")
 
 def _dist_cleanup():
     dist.destroy_process_group()

@@ -47,8 +47,8 @@ def run_perf_analysis(model: nn.Module,
 
     # get param counts for MFU calculation
     param_counts = parameter_count(model)
-    log(f"encoder parameters: {param_counts['encoder']}")
-    log(f"decoder parameters: {param_counts['decoder']}") 
+    log(f"encoder parameters: {param_counts['encoder']:.2e}")
+    log(f"decoder parameters: {param_counts['decoder']:.2e}") 
 
     # run test
     for step, (encoded_inputs, encoded_targets) in enumerate(dataloader):
