@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from time import perf_counter
+from torch import distributed as dist
 from torch import nn
 import torch.nn.functional as f
 from torch.utils.data import DataLoader
@@ -18,14 +19,17 @@ def estimate_mfu(cfg: TrainingConfig,
     '''
     MFU (Model Flops Utilization) can be estimated as:
 
-    MFU = (actual FLOPs per second when trainng) / (theoretical peak FLOPs per second of hardware)
+    MFU = (actual FLOPs per second when training) / (theoretical peak FLOPs per second of hardware)
 
     Args:
         steps_per_second: training steps per second measured
         hardware_peak_flops_per_sec: check your GPU documentation for this value
     '''
+    effective_batch_size = cfg.batch_size
+    if cfg.distributed:
+        effective_batch_size = cfg.batch_size / dist.get_world_size()
     hardware_peak_flops = float(cfg.hardware_peak_tflops) * 10**12
-    flops_per_step = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * cfg.batch_size
+    flops_per_step = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * effective_batch_size
     actual_flops_per_second = flops_per_step * steps_per_second
     mfu = actual_flops_per_second / hardware_peak_flops
     log(f"flops per step: {flops_per_step:.2e}")
