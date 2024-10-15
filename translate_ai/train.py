@@ -229,7 +229,8 @@ def train(cfg: TrainingConfig) -> None:
             steps_per_second = epoch_duration / steps_per_epoch
 
             mfu = estimate_mfu(cfg, param_counts['encoder'], param_counts['decoder'], steps_per_second, HARDWARE_PEAK_FLOPS_PER_SECOND)
-            log(f"Esimated MFU: {mfu:.4f}", local_rank)
+            mfu_pct = mfu * 100
+            log(f"Esimated MFU: {mfu_pct:.4f}%", local_rank)
 
     # catch ctrl+C to allow us to interrupt training early and plot learning curves,
     # for faster development iteration loop.
