@@ -28,10 +28,10 @@ def estimate_mfu(cfg: TrainingConfig,
     flops_per_step = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * cfg.batch_size
     actual_flops_per_second = flops_per_step * steps_per_second
     mfu = actual_flops_per_second / hardware_peak_flops
-    log(f"flops per step: {flops_per_step:.4e}")
+    log(f"flops per step: {flops_per_step:.2e}")
     log(f"steps per second: {steps_per_second:.2f}")
-    log(f"actual flops per second: {actual_flops_per_second:.4e}")
-    log(f"hardware peak flops per second: {hardware_peak_flops:.4e}")
+    log(f"actual flops per second: {actual_flops_per_second:.2e}")
+    log(f"hardware peak flops per second: {hardware_peak_flops:.2e}")
     return mfu
 
 def run_perf_analysis(model: nn.Module, 
