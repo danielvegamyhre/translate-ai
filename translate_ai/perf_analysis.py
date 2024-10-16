@@ -26,23 +26,22 @@ def estimate_mfu(cfg: TrainingConfig,
         hardware_peak_flops_per_sec: check your GPU documentation for this value
     '''
     effective_batch_size = cfg.batch_size
-    world_size = 1
+    num_chips = 1
     if cfg.distributed:
-        world_size = dist.get_world_size()
-        effective_batch_size = cfg.batch_size / world_size
+        num_chips = dist.get_world_size()
+        effective_batch_size = cfg.batch_size / num_chips
 
     # calculate total peak flops per second using all chips
-    hardware_peak_flops = float(cfg.hardware_peak_tflops) * 10**12
-    total_peak_flops_per_second = hardware_peak_flops * world_size
+    hardware_peak_flops_per_chip = float(cfg.hardware_peak_tflops) * 10**12
+    total_peak_flops_per_second = hardware_peak_flops_per_chip * num_chips
     
     # estimate actual flops per second achieved across all chips
-    flops_per_step = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * effective_batch_size
-    actual_flops_per_second = flops_per_step * steps_per_second
-    actual_flops_per_second *= world_size
+    flops_per_step_per_chip = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * effective_batch_size
+    actual_flops_per_second = flops_per_step_per_chip * num_chips * steps_per_second
 
     mfu = actual_flops_per_second / total_peak_flops_per_second
-    log(f"flops per step: {flops_per_step:.2e}")
     log(f"steps per second: {steps_per_second:.2f}")
+    log(f"flops per step per chip: {flops_per_step_per_chip:.2e}")
     log(f"actual flops per second (all chips): {actual_flops_per_second:.2e}")
     log(f"hardware peak flops per second (all chips): {total_peak_flops_per_second:.2e}")
     return mfu
