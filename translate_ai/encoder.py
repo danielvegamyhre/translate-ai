@@ -29,14 +29,14 @@ class Encoder(nn.Module):
         B, T = x.shape
         tok_embed = self.token_embedding(x)
         pos_embed = self.position_embedding(torch.arange(T).to(x.device))
-        # B,T,C -> B,T,C
         out = tok_embed + pos_embed
-        out = self.dropout(out)
+
         # B,T -> B,1,T so it can be broadcasted across attention scores
         encoder_padding_mask = encoder_padding_mask.unsqueeze(1)
         for layer in self.layers:
             # B,T,C -> B,T,C
             out = layer(out, encoder_padding_mask)
+        out = self.dropout(out)
         return out
 
 
@@ -49,7 +49,7 @@ class EncoderLayer(nn.Module):
         
         super(EncoderLayer, self).__init__()
         self.mha = MultiHeadSelfAttention(num_attention_heads, embed_dim, d_model)
-        self.ffwd = FeedForward(d_model, ffwd_dim)
+        self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
 
@@ -75,7 +75,7 @@ class MultiHeadSelfAttention(nn.Module):
             SelfAttentionHead(embed_dim, head_dim)
             for _ in range(num_heads)
         ])
-        self.linear = nn.Linear(d_model, d_model)
+        self.linear = nn.Linear(d_model, embed_dim)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
@@ -83,8 +83,8 @@ class MultiHeadSelfAttention(nn.Module):
         # concat them all along head_size dim -> (B,T,H)
         # since H = head_size * num_heads 
         x = torch.cat([head(x, mask) for head in self.heads], dim=-1)
-        # (B,T,H) -> B,T,H
-        x = self.linear(x)
+        # project to embed dimension to enable residual (i.e. x + mha(x))
+        x = self.linear(x)  #  (B,T,H) -> B,T,C
         x = self.dropout(x)
         return x
 
@@ -103,10 +103,10 @@ class SelfAttentionHead(nn.Module):
         self.dropout = nn.Dropout(dropout)
     
     def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        # (B,T,C) @ (C,H) = (B,T,H) -> (batch, token, hidden dimension)
+        # (B,T,C) @ (C,head_dim) = (B,T,head_dim)
         queries = self.query_layer(x) 
 
-        # (B,T,C) @ (C,H) = (B,T,H) -> (batch, token, hidden dimension)
+        # (B,T,C) @ (C,head_dim) = (B,T,head_dim)
         keys = self.key_layer(x)
 
         # (B,T,H) @ (B,H,T) = (B,T,T)
@@ -123,18 +123,18 @@ class SelfAttentionHead(nn.Module):
         # apply dropout
         weighted_scores = self.dropout(weighted_scores)
 
-        # (B,T,C) @ (C,H) = (B,T,H) -> (batch, token, hidden dimension)
+        # (B,T,C) @ (C,head_dim) = (B,T,head_dim)
         values = self.value_layer(x)
 
-        # (B,T,T) @ (B,T,H) = B,T,H
+        # (B,T,T) @ (B,T,head_dim) = B,T,head_dim
         out = weighted_scores @ values
         return out
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model: int, ffwd_dim: int, dropout: float = 0.1):
+    def __init__(self, embed_dim: int, ffwd_dim: int, dropout: float = 0.1):
         super(FeedForward, self).__init__()
-        self.linear1 = nn.Linear(d_model, ffwd_dim)
-        self.linear2 = nn.Linear(ffwd_dim, d_model)
+        self.linear1 = nn.Linear(embed_dim, ffwd_dim)
+        self.linear2 = nn.Linear(ffwd_dim, embed_dim)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

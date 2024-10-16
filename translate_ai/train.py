@@ -181,7 +181,7 @@ def train(cfg: TrainingConfig) -> None:
                 B,T,C = logits.shape
                 logits = logits.reshape(B*T,C)                  # B,T,vocab_size -> B*T,vocab_size
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
-                
+
                 loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
                 if cfg.debug:
                     log(f"epoch: {epoch}, step: {step}, loss: {loss}", local_rank)

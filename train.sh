@@ -7,7 +7,7 @@ python3 translate_ai/train.py \
     --batch-size 2 \
     --num-layers 2 \
     --embed-dim 128 \
-    --d-model 128 \
+    --d-model 256 \
     --ffwd-dim 512 \
     --seq-len 128 \
     --max-output-tokens 128 \
