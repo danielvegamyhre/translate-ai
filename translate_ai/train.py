@@ -70,8 +70,8 @@ def train(cfg: TrainingConfig) -> None:
     train_sampler, val_sampler = None, None
     shuffle = True
     if cfg.distributed:
-        train_sampler = DistributedSampler(train_dataset)
-        val_sampler = DistributedSampler(val_dataset)
+        train_sampler = DistributedSampler(train_dataset, num_replicas=dist.get_world_size(), rank=dist.get_rank())
+        val_sampler = DistributedSampler(val_dataset, num_replicas=dist.get_world_size(), rank=dist.get_rank())
         shuffle = False
     train_loader = DataLoader(train_dataset, batch_size=cfg.batch_size, shuffle=shuffle, sampler=train_sampler)
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=shuffle, sampler=val_sampler)
