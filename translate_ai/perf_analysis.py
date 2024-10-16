@@ -59,7 +59,7 @@ def run_perf_analysis(model: nn.Module,
     log(f"running performance analysis with {warmup_steps} warmup steps and {test_steps} test steps")
 
     # get param counts for MFU calculation
-    param_counts = parameter_count(model)
+    param_counts = parameter_count(model.module if cfg.distributed else model)
     log(f"encoder parameters: {param_counts['encoder']:.2e}")
     log(f"decoder parameters: {param_counts['decoder']:.2e}") 
 
