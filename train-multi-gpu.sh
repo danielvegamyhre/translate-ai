@@ -1,5 +1,6 @@
 #!/bin/bash
-torchrun --nproc_per_node=2 --master_port=12345 translate_ai/train.py \
+torchrun --nproc_per_node=2 --master_port=12345 \
+    translate_ai/train.py \
     --dataset-file data/english-spanish.csv \
     --device cuda \
     --mixed-precision bf16 \
