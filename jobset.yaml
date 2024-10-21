@@ -1,0 +1,69 @@
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: transformer 
+spec:
+  replicatedJobs:
+  - name: workers
+    template:
+      spec:
+        parallelism: 2
+        completions: 2
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: pytorch
+              image: <YOUR_CONTAINER_IMAGE>
+              env:
+              - name: MASTER_ADDR
+                value: "transformer-workers-0-0.transformer"
+              - name: MASTER_PORT
+                value: "3389"
+              - name: RANK
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+              # Force python to not buffer output and write directly to stdout, so we can view training logs via `kubectl logs`.
+              - name: PYTHONUNBUFFERED
+                value: "0"
+              - name: NPROC_PER_NODE
+                value: 1
+              - name: NNODES
+                value: 2
+              # If your'e not using Weights and Biases for observability, you can delete the following 2 environment variables.
+              # Be sure to delete the corresponding command line args in the container command below as well.
+              - name: WANDB_PROJECT
+                value: <YOUR_WANDB_PROJECT>
+              envFrom:
+              - secretRef:
+                  name: <YOUR_WANDB_SECRET>
+              command:
+              - bash
+              - -xc
+              - |
+                torchrun --nproc_per_node=${NPROC_PER_NODE} \
+                    --nnodes=${NNODES} \
+                    translate_ai/train.py \
+                    --dataset-file data/english-spanish.csv \
+                    --device cuda \
+                    --mixed-precision bf16 \
+                    --epochs 10 \
+                    --learning-rate .004 \
+                    --batch-size 128 \
+                    --num-layers 2 \
+                    --embed-dim 128 \
+                    --d-model 128 \
+                    --ffwd-dim 512 \
+                    --seq-len 128 \
+                    --max-output-tokens 128 \
+                    --eval-interval 200 \
+                    --eval-iters 10 \
+                    --checkpoint-interval 200 \
+                    --save-checkpoint checkpoints/chkpt.pt \
+                    --wandb-project ${WANDB_PROJECT} \
+                    --wandb-api-key ${WANDB_API_KEY} \
+                    --distributed
+              resources:
+                limits:
+                  nvidia.com/gpu: 1
