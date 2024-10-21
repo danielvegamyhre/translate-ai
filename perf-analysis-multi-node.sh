@@ -11,6 +11,6 @@ torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 translate_ai/train.py
     --ffwd-dim 512 \
     --seq-len 128 \
     --max-output-tokens 128 \
-    --hardware-peak-tflops 19.05 \
+    --hardware-peak-tflops ${HARDWARE_PEAK_TFLOPS} \
     --distributed \
     --estimate-mfu

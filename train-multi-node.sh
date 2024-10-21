@@ -1,5 +1,5 @@
 #!/bin/bash
-torchrun --nproc_per_node=2 --master_port=12345 translate_ai/train.py \
+torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 translate_ai/train.py \
     --dataset-file data/english-spanish.csv \
     --device cuda \
     --mixed-precision bf16 \
@@ -16,6 +16,6 @@ torchrun --nproc_per_node=2 --master_port=12345 translate_ai/train.py \
     --eval-iters 10 \
     --checkpoint-interval 200 \
     --save-checkpoint checkpoints/chkpt.pt \
-    --wandb-project dvm \
+    --wandb-project ${WANDB_PROJECT} \
     --wandb-api-key ${WANDB_API_KEY} \
     --distributed

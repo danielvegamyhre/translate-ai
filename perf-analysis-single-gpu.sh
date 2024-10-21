@@ -10,6 +10,6 @@ python3 translate_ai/train.py \
     --ffwd-dim 512 \
     --seq-len 128 \
     --max-output-tokens 128 \
-    --hardware-peak-tflops 1.0 \
+    --hardware-peak-tflops ${HARDWARE_PEAK_TFLOPS} \
     --estimate-mfu
 
