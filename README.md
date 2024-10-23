@@ -44,7 +44,7 @@ torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 \
     --d-model 128 \
     --ffwd-dim 512 \
     --seq-len 128 \
-    --max-output-tokens 128 \
+    --output-seq-len 128 \
     --eval-interval 200 \
     --eval-iters 10 \
     --checkpoint-interval 200 \
@@ -131,3 +131,7 @@ kubectl apply -f jobset.yaml
 
 6. Verify the training is working, either by viewing container logs, Tensorboard, or Weights and Biases (depending on what
 observability instrumentation you have set up).
+
+```bash
+kubectl logs transformer-workers-0-0
+```

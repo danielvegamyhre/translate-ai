@@ -11,32 +11,35 @@ class Decoder(nn.Module):
     def __init__(self, 
                  vocab_size: int,
                  num_layers: int = 6,
-                 max_output_tokens: int = 1000, 
                  num_heads: int = 4,
                  embed_dim: int = 128,
                  d_model: int = 512,    
                  ffwd_dim: int = 2048,
-                 max_seq_len: int = 128):
+                 output_seq_len: int = 128,
+                 device: str = "cpu"):
         super(Decoder, self).__init__()
-        self.position_embedding = nn.Embedding(max_output_tokens, embed_dim)
+        self.position_embedding = nn.Embedding(output_seq_len, embed_dim)
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
         self.layers = nn.ModuleList(
-            [DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, max_seq_len) for _ in range(num_layers)]
+            [DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, output_seq_len=output_seq_len) for _ in range(num_layers)]
         )
         self.linear = nn.Linear(embed_dim, vocab_size)
+        self.device = device
 
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> tuple[torch.tensor, float]:
         # (B,T) -> (B,T,C)
         B, T = x.shape
         pos_embed = self.position_embedding(torch.arange(T).to(x.device))
         tok_embed = self.token_embedding(x)
         x = tok_embed + pos_embed
+        sparsity_loss = torch.tensor(0.0, device=self.device)
         for layer in self.layers:
-            x = layer(x, encoder_out, decoder_padding_mask)     # (B,T,C) -> (B,T,C)
+            x, layer_sparsity_loss = layer(x, encoder_out, decoder_padding_mask)     # (B,T,C) -> (B,T,C)
+            sparsity_loss += layer_sparsity_loss
 
         # (B,T,C) @ (C, output_vocab_size) = (B,T,output_vocab_size)
         x = self.linear(x)
-        return x
+        return x, sparsity_loss
 
 class DecoderLayer(nn.Module):
     def __init__(self,
@@ -44,17 +47,17 @@ class DecoderLayer(nn.Module):
                  embed_dim: int,
                  d_model: int,
                  ffwd_dim: int,
-                 max_seq_len: int):
+                 output_seq_len: int = 128):
         super(DecoderLayer, self).__init__()
-        self.masked_mha = MultiHeadSelfAttention(num_heads, embed_dim, d_model)
+        self.masked_mha = MultiHeadSelfAttention(num_heads, embed_dim, d_model, seq_len=output_seq_len)
         self.mh_cross_attention = MultiHeadCrossAttention(num_heads, embed_dim, d_model)
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
         self.ln3 = nn.LayerNorm(embed_dim)
-        self.register_buffer('tril', torch.tril(torch.ones((max_seq_len, max_seq_len))))
+        self.register_buffer('tril', torch.tril(torch.ones((output_seq_len, output_seq_len))))
 
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> tuple[torch.Tensor, torch.Tensor]:
         B,T,C = x.shape
         decoder_causal_mask = (self.tril[:T, :T] == 0)
         if decoder_padding_mask is not None:
@@ -66,10 +69,12 @@ class DecoderLayer(nn.Module):
         if decoder_padding_mask is not None:
             combined_mask = (decoder_padding_mask | decoder_causal_mask)
 
-        x = self.ln1(x + self.masked_mha(x, combined_mask))         # B,T,C -> B,T,C
+        # we keep attention scores to do sparsity loss during training
+        outputs, sparsity_loss = self.masked_mha(x, combined_mask)    # B,T,C -> B,T,C
+        x = self.ln1(x + outputs)
         x = self.ln2(x + self.mh_cross_attention(x, encoder_out))   # B,T,C -> B,T,C
         x = self.ln3(x + self.ffwd(x))                              # B,T,H -> B,T,H
-        return x
+        return x, sparsity_loss
 
 
 class MultiHeadCrossAttention(nn.Module):#

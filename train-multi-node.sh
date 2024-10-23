@@ -12,7 +12,7 @@ torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 \
     --d-model 128 \
     --ffwd-dim 512 \
     --seq-len 128 \
-    --max-output-tokens 128 \
+    --output-seq-len 128 \
     --eval-interval 200 \
     --eval-iters 10 \
     --checkpoint-interval 200 \

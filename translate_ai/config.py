@@ -31,7 +31,7 @@ class TrainingConfig:
     ffwd_dim: int
     num_attention_heads: int
     seq_len: int
-    max_output_tokens: int
+    output_seq_len: int
 
     # eval configs
     eval_interval: int

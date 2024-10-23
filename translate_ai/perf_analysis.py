@@ -36,7 +36,7 @@ def estimate_mfu(cfg: TrainingConfig,
     total_peak_flops_per_second = hardware_peak_flops_per_chip * num_chips
     
     # estimate actual flops per second achieved across all chips
-    flops_per_step_per_chip = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.max_output_tokens) * effective_batch_size
+    flops_per_step_per_chip = 6 * (num_encoder_params * cfg.seq_len + num_decoder_params * cfg.output_seq_len) * effective_batch_size
     actual_flops_per_second = flops_per_step_per_chip * num_chips * steps_per_second
 
     mfu = actual_flops_per_second / total_peak_flops_per_second

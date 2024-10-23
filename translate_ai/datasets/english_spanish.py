@@ -51,3 +51,11 @@ class EnglishToSpanishDataset(Dataset):
         total_tokens_y = len(self.Y[0]) * len(self.Y)
         return total_tokens_x + total_tokens_y
     
+    @property
+    def input_seq_len(self) -> int:
+        return self.X[0].shape[0]
+    
+    @property
+    def output_seq_len(self) -> int:
+        return self.Y[0].shape[0]
+    

@@ -39,8 +39,8 @@ def translate(english_query: str, checkpoint_file: str) -> str:
         num_decoder_layers=cfg.num_layers,
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
-        max_seq_len=cfg.seq_len,
-        max_output_tokens=cfg.max_output_tokens)
+        input_seq_len=cfg.seq_len,
+        output_seq_len=cfg.output_seq_len)
     if cfg.mixed_precision == "bf16":
         model = model.to(torch.bfloat16)
     elif cfg.mixed_precision == "fp16":
@@ -58,7 +58,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
     # run decoder one step at time auto-regressively
     with torch.no_grad():
         pred_tokens = torch.tensor([bos_token], device=cfg.device).unsqueeze(0) # (B,1) where B=1
-        for _ in tqdm(range(model.max_output_tokens)):
+        for _ in tqdm(range(model.output_seq_len)):
             decoder_out = model.decoder(pred_tokens, encoder_out)               # (B,T,output_vocab_size) where B=1
 
             # get latest predicted token in seq

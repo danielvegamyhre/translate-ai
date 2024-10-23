@@ -25,7 +25,7 @@ from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
 from perf_analysis import run_perf_analysis
-from utils import log
+from utils import log, sparse_attention_loss
 from config import (
     TrainingConfig,
     SUPPORTED_MIXED_PRECISION_DTYPES,
@@ -60,11 +60,11 @@ def train(cfg: TrainingConfig) -> None:
                                       pad_token,
                                       bos_token,
                                       eos_token)
-
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     log(f"total dataset examples: {len(dataset)}", local_rank)
+
 
     # initalize dataloaders
     train_sampler, val_sampler = None, None
@@ -86,8 +86,10 @@ def train(cfg: TrainingConfig) -> None:
         num_decoder_layers=cfg.num_layers,
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
-        max_seq_len=cfg.seq_len,
-        max_output_tokens=cfg.max_output_tokens).to(device)
+        input_seq_len=dataset.input_seq_len,
+        output_seq_len=dataset.output_seq_len-1, # -1 since decoder inputs and targets will be missing first/last token
+        device=device,
+    ).to(device)
 
     if cfg.distributed:
         # wrap model in DDP and configure the device the code will be operating
@@ -170,7 +172,7 @@ def train(cfg: TrainingConfig) -> None:
                 encoder_padding_mask = (encoder_input == pad_token).to(device) # (B,T)
                 decoder_padding_mask = (decoder_input == pad_token).to(device) # (B,T)
 
-                logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
+                logits, sparsity_loss = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
 
                 if cfg.debug:
                     import pdb; pdb.set_trace()
@@ -183,6 +185,8 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
 
                 loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
+                loss += sparsity_loss
+
                 if cfg.debug:
                     log(f"epoch: {epoch}, step: {step}, loss: {loss}", local_rank)
 
@@ -261,7 +265,7 @@ def estimate_loss(model: nn.Module,
         encoder_padding_mask = (encoder_input == ignore_index).to(device) # (B,T)
         decoder_padding_mask = (decoder_input == ignore_index).to(device) # (B,T)
 
-        logits = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
+        logits, sparsity_loss = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
 
         # flatten predicted probs and targets for cross entropy loss
         B,T,C = logits.shape
@@ -269,6 +273,7 @@ def estimate_loss(model: nn.Module,
         decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
         
         loss = f.cross_entropy(logits, decoder_targets, ignore_index=ignore_index)
+        loss += sparsity_loss
         losses[i] = loss
     return losses.mean()
 
@@ -330,7 +335,7 @@ if __name__ == '__main__':
     argparser.add_argument("--d-model", type=int, default=128)
     argparser.add_argument("--num-attention-heads", type=int, default=2)
     argparser.add_argument("--seq-len", type=int, default=128)
-    argparser.add_argument("--max-output-tokens", type=int, default=128)
+    argparser.add_argument("--output-seq-len", type=int, default=128)
 
     # evaluation
     argparser.add_argument("--eval-interval", type=int, default=100)
@@ -383,7 +388,7 @@ if __name__ == '__main__':
         d_model=args.d_model,
         num_attention_heads=args.num_attention_heads,
         seq_len=args.seq_len,
-        max_output_tokens=args.max_output_tokens,
+        output_seq_len=args.output_seq_len,
 
         # evaluation
         eval_interval=args.eval_interval,
