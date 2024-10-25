@@ -6,7 +6,14 @@ def log(msg: str, rank: int = 0):
     if rank == 0:
         print(msg)
 
-def sparse_attention_loss(attention_scores: list[torch.tensor], recon_attention_scores: list[torch.tensor], sparsity_lambda: float = 1e-3):
-    recon_loss = f.mse_loss(recon_attention_scores, attention_scores)
-    sparsity_loss = sparsity_lambda * torch.mean(torch.abs(recon_attention_scores))
-    return recon_loss + sparsity_loss
+def calculate_sparsity(attn_scores, threshold=1e-2):
+    """
+    Calculate the fraction of attention scores that are below a given threshold.
+    
+    attn_weights: (batch_size, num_heads, seq_len, seq_len)
+    threshold: value below which attention weights are considered sparse.
+    """
+    total_elements = attn_scores.numel()
+    sparse_elements = (attn_scores.abs() < threshold).sum().item()
+    
+    return sparse_elements / total_elements

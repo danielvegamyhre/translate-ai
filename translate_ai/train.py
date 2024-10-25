@@ -25,7 +25,7 @@ from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
 from scheduler import NoamLR
 from perf_analysis import run_perf_analysis
-from utils import log, sparse_attention_loss
+from utils import log
 from config import (
     TrainingConfig,
     SUPPORTED_MIXED_PRECISION_DTYPES,
@@ -173,9 +173,8 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_padding_mask = (decoder_input == pad_token).to(device) # (B,T)
 
                 logits, sparsity_loss = model(encoder_input, decoder_input, encoder_padding_mask, decoder_padding_mask)
-
+                log(f"sparsity loss: {sparsity_loss}")
                 if cfg.debug:
-                    import pdb; pdb.set_trace()
                     log(f'logits min: {logits.min().item()}, max: {logits.max().item()}, mean: {logits.mean().item()}', local_rank)
                     log(f'logits argmax: {torch.argmax(logits, dim=-1)}', local_rank)
 
@@ -185,12 +184,19 @@ def train(cfg: TrainingConfig) -> None:
                 decoder_targets = decoder_targets.reshape(-1)   # B,T -> B*T
 
                 loss = f.cross_entropy(logits, decoder_targets, ignore_index=pad_token)
+                import pdb; pdb.set_trace()
                 loss += sparsity_loss
 
                 if cfg.debug:
                     log(f"epoch: {epoch}, step: {step}, loss: {loss}", local_rank)
 
                 loss.backward()
+
+                # Check if gradients are being computed for parameters
+                for name, param in model.named_parameters():
+                    if param.grad is None:
+                        print(f"Parameter {name} has no gradient")
+
                 optim.step()
                 lr_scheduler.step()
                 optim.zero_grad(set_to_none=True)

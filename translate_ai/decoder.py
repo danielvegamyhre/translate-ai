@@ -122,7 +122,7 @@ class CrossAttentionHead(nn.Module):
 
         # no masking, decoder queries can attend to all parts of the encoder output.
         # (B,T,C) @ (B,C,T) = (B,T,T)
-        scores = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
+        scores = (queries @ keys.transpose(-2,-1)) * (1.0/sqrt(keys.shape[-1]))
 
         # B,T,T
         weighted_scores = torch.softmax(scores, dim=-1)

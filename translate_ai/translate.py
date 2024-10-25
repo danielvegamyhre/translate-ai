@@ -39,8 +39,8 @@ def translate(english_query: str, checkpoint_file: str) -> str:
         num_decoder_layers=cfg.num_layers,
         num_attention_heads=cfg.num_attention_heads,
         ffwd_dim=cfg.ffwd_dim,
-        input_seq_len=cfg.seq_len,
-        output_seq_len=cfg.output_seq_len)
+        input_seq_len=52, #cfg.seq_len,
+        output_seq_len=68) #cfg.output_seq_len)
     if cfg.mixed_precision == "bf16":
         model = model.to(torch.bfloat16)
     elif cfg.mixed_precision == "fp16":
@@ -53,13 +53,13 @@ def translate(english_query: str, checkpoint_file: str) -> str:
 
     # run input query through encoder to get encoder output / context
     encoder_padding_mask = (encoder_input == pad_token).to(cfg.device) # (B,T)
-    encoder_out = model.encoder(encoder_input, encoder_padding_mask)
+    encoder_out, _ = model.encoder(encoder_input, encoder_padding_mask)
 
     # run decoder one step at time auto-regressively
     with torch.no_grad():
         pred_tokens = torch.tensor([bos_token], device=cfg.device).unsqueeze(0) # (B,1) where B=1
         for _ in tqdm(range(model.output_seq_len)):
-            decoder_out = model.decoder(pred_tokens, encoder_out)               # (B,T,output_vocab_size) where B=1
+            decoder_out, _ = model.decoder(pred_tokens, encoder_out)               # (B,T,output_vocab_size) where B=1
 
             # get latest predicted token in seq
             decoder_out = decoder_out[:, -1, :]                                 # (B,1,output_vocab_size) where B=1

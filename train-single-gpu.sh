@@ -4,7 +4,7 @@ python3 translate_ai/train.py \
     --device mps \
     --epochs 1 \
     --learning-rate .001 \
-    --batch-size 2 \
+    --batch-size 1 \
     --num-layers 2 \
     --embed-dim 128 \
     --d-model 256 \
@@ -15,5 +15,4 @@ python3 translate_ai/train.py \
     --eval-iters 10 \
     --checkpoint-interval 100 \
     --save-checkpoint checkpoints/chkpt.pt \
-    --wandb-project dvm \
-    --wandb-api-key ${WANDB_API_KEY}
+    --tensorboard-log-dir logs

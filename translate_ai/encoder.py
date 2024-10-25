@@ -5,6 +5,8 @@ from torch import nn
 from torch.nn import functional as f
 from math import sqrt
 
+from utils import log, calculate_sparsity
+
 class Encoder(nn.Module):
     def __init__(self, 
                  num_layers: int,
@@ -85,16 +87,18 @@ class MultiHeadSelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> tuple[torch.tensor, list[torch.tensor], list[torch.tensor]]:
-        # head(x) => (B,T,head_size)
-        # concat them all along head_size dim -> (B,T,H)
-        # since H = head_size * num_heads
-        head_outputs, sparsity_loss = [], 0.0
+        head_outputs = []
+        sparsity_loss = torch.tensor(0.0, device="mps")
         for head in self.heads:
             out, head_sparsity_loss = head(x, mask)
             head_outputs.append(out)
             sparsity_loss += head_sparsity_loss
 
+        # head(x) => (B,T,head_size)
+        # concat them all along head_size dim -> (B,T,H)
+        # since H = head_size * num_heads
         x = torch.cat(head_outputs, dim=-1)
+
         # project to embed dimension to enable residual (i.e. x + mha(x))
         x = self.linear(x)  #  (B,T,H) -> B,T,C
         x = self.dropout(x)
@@ -131,7 +135,7 @@ class SparseSelfAttentionHead(nn.Module):
         k1 = self.K1(x)
 
         # (B,T,H) @ (B,H,T) = (B,T,T)
-        raw_scores = (q1 @ k1.transpose(-2,-1)) / sqrt(k1.shape[-1])
+        raw_scores = (q1 @ k1.transpose(-2,-1)) * sqrt(1.0/k1.shape[-1])
 
         # sae layer, reconstruct scores with increased sparsity to reduce noise
         # (B,T,T) @ (T, T//4) @ (T//4, T)= (B,T,T)
@@ -144,6 +148,8 @@ class SparseSelfAttentionHead(nn.Module):
 
         # element-wise, shape stays same
         weighted_scores = torch.softmax(sparse_scores, dim=-1)
+
+        log(f"attention score sparsity: {calculate_sparsity(weighted_scores)}")
 
         # compute sparsity loss (L1 penalty)
         sparsity_loss = self.sparsity_lambda * torch.sum(torch.abs(weighted_scores))
