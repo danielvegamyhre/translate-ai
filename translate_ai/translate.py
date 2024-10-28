@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 import tiktoken
 from tqdm import tqdm
 
-from transformer import TransformerTranslator
+from transformer import DifferentialTransformer
 from checkpoint import load_checkpoint, load_state_dict
 from config import TrainingConfig
 
@@ -30,7 +30,7 @@ def translate(english_query: str, checkpoint_file: str) -> str:
     # (B,T) where B=1
     encoder_input = torch.tensor([bos_token] + tokenizer.encode(english_query) + [eos_token]).unsqueeze(0).to(cfg.device) 
 
-    model = TransformerTranslator(
+    model = DifferentialTransformer(
         input_vocab_size=vocab_size, 
         output_vocab_size=vocab_size,
         embed_dim=cfg.embed_dim,

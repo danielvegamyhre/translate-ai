@@ -19,7 +19,7 @@ import tiktoken
 import wandb
 from fvcore.nn import parameter_count
 
-from transformer import TransformerTranslator
+from transformer import DifferentialTransformer
 from datasets.english_spanish import EnglishToSpanishDataset
 from checkpoint import save_checkpoint, load_checkpoint
 from plotting import plot_learning_curves
@@ -77,7 +77,7 @@ def train(cfg: TrainingConfig) -> None:
     val_loader = DataLoader(val_dataset, batch_size=cfg.batch_size, shuffle=shuffle, sampler=val_sampler)
 
     # initialize model
-    model = TransformerTranslator(
+    model = DifferentialTransformer(
         input_vocab_size=vocab_size, 
         output_vocab_size=vocab_size,
         embed_dim=cfg.embed_dim,

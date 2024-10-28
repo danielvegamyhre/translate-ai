@@ -8,6 +8,8 @@ absl-py==2.1.0
     # via tensorboard
 accelerate==1.0.0
     # via -r requirements.in
+black==24.10.0
+    # via -r requirements.in
 certifi==2024.8.30
     # via
     #   requests
@@ -15,7 +17,9 @@ certifi==2024.8.30
 charset-normalizer==3.3.2
     # via requests
 click==8.1.7
-    # via wandb
+    # via
+    #   black
+    #   wandb
 contourpy==1.3.0
     # via matplotlib
 cycler==0.12.1
@@ -60,6 +64,8 @@ matplotlib==3.9.2
     # via -r requirements.in
 mpmath==1.3.0
     # via sympy
+mypy-extensions==1.0.0
+    # via black
 networkx==3.3
     # via torch
 numpy==2.1.1
@@ -74,17 +80,22 @@ numpy==2.1.1
 packaging==24.1
     # via
     #   accelerate
+    #   black
     #   huggingface-hub
     #   matplotlib
     #   tensorboard
 pandas==2.2.3
     # via -r requirements.in
+pathspec==0.12.1
+    # via black
 pillow==10.4.0
     # via
     #   fvcore
     #   matplotlib
 platformdirs==4.3.6
-    # via wandb
+    # via
+    #   black
+    #   wandb
 portalocker==2.10.1
     # via iopath
 protobuf==5.28.2
