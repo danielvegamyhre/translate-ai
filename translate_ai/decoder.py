@@ -2,10 +2,9 @@
 
 import torch
 from torch import nn
-from torch.nn import functional as f
-from math import sqrt
 
-from encoder import MultiHeadSelfAttention, FeedForward
+from encoder import FeedForward
+from attention import DifferentialMultiHeadCrossAttention, DifferentialMultiHeadSelfAttention
 
 class Decoder(nn.Module):
     def __init__(self, 
@@ -46,8 +45,8 @@ class DecoderLayer(nn.Module):
                  ffwd_dim: int,
                  max_seq_len: int):
         super(DecoderLayer, self).__init__()
-        self.masked_mha = MultiHeadSelfAttention(num_heads, embed_dim, d_model)
-        self.mh_cross_attention = MultiHeadCrossAttention(num_heads, embed_dim, d_model)
+        self.masked_mha = DifferentialMultiHeadSelfAttention(num_heads, embed_dim, d_model)
+        self.mh_cross_attention = DifferentialMultiHeadCrossAttention(num_heads, embed_dim, d_model)
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
@@ -71,58 +70,3 @@ class DecoderLayer(nn.Module):
         x = self.ln3(x + self.ffwd(x))                              # B,T,H -> B,T,H
         return x
 
-
-class MultiHeadCrossAttention(nn.Module):#
-    def __init__(self, num_heads: int, embed_dim: int, d_model: int, dropout: float = 0.1):
-        super(MultiHeadCrossAttention, self).__init__()
-        assert d_model % num_heads == 0
-        head_dim = d_model // num_heads
-        self.heads = nn.ModuleList([
-            CrossAttentionHead(embed_dim, head_dim)
-            for _ in range(num_heads)
-        ])
-        self.linear = nn.Linear(d_model, embed_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
-        # each head: B,T,C -> B,T,head_dim
-        # after concat: B,T,d_model
-        x = torch.cat([head(x, encoder_out) for head in self.heads], dim=-1)
-        x = self.linear(x)  # B,T,d_model -> B,T,C
-        x = self.dropout(x)
-        return x
-
-class CrossAttentionHead(nn.Module):
-    def __init__(self, 
-                 embed_dim: int, 
-                 head_dim: int,
-                 dropout: float = 0.1):
-        super(CrossAttentionHead, self).__init__()
-        self.q = nn.Linear(embed_dim, head_dim)
-        self.k = nn.Linear(embed_dim, head_dim)
-        self.v = nn.Linear(embed_dim, head_dim)
-        self.dropout = nn.Dropout(dropout)
-    
-    def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
-        # queries come from previous decoder layer
-        # B,T,C @ C,head_dim -> B,T,head_dim
-        queries = self.q(x) 
-
-        # keys and values come from encoder output
-        # B,T,C @ C,head_dim -> B,T,head_dim
-        keys = self.k(encoder_out)
-        
-        # B,T,C @ C,head_dim -> B,T,head_dim
-        values = self.v(encoder_out)
-
-        # no masking, decoder queries can attend to all parts of the encoder output.
-        # (B,T,C) @ (B,C,T) = (B,T,T)
-        scores = (queries @ keys.transpose(-2,-1)) / sqrt(keys.shape[-1])
-
-        # B,T,T
-        weighted_scores = torch.softmax(scores, dim=-1)
-        weighted_scores = self.dropout(weighted_scores)
-
-        # (B,T,T) @ (B,T,head_dim) = B,T,head_dim
-        out = weighted_scores @ values
-        return out

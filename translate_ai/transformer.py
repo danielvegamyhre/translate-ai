@@ -2,12 +2,11 @@
 
 import torch
 from torch import nn
-from torch.nn import functional as f
 
 from encoder import Encoder
 from decoder import Decoder
 
-class TransformerTranslator(nn.Module):
+class DifferentialTransformer(nn.Module):
     def __init__(self,
                  input_vocab_size: int,
                  output_vocab_size: int,
@@ -20,7 +19,7 @@ class TransformerTranslator(nn.Module):
                  max_seq_len: int = 512,
                  max_output_tokens: int = 1000):
         
-        super(TransformerTranslator, self).__init__()
+        super(DifferentialTransformer, self).__init__()
 
         self.input_vocab_size = input_vocab_size
         self.output_vocab_size = output_vocab_size
