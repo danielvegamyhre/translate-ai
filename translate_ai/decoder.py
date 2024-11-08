@@ -19,9 +19,10 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.position_embedding = nn.Embedding(max_output_tokens, embed_dim)
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
-        self.layers = nn.ModuleList(
-            [DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, max_seq_len) for _ in range(num_layers)]
-        )
+        self.layers = nn.ModuleList([
+            DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, max_seq_len, layer_index=i) 
+             for i in range(num_layers)
+        ])
         self.linear = nn.Linear(embed_dim, vocab_size)
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor, decoder_padding_mask: torch.Tensor = None) -> torch.Tensor:
@@ -43,10 +44,11 @@ class DecoderLayer(nn.Module):
                  embed_dim: int,
                  d_model: int,
                  ffwd_dim: int,
-                 max_seq_len: int):
+                 max_seq_len: int,
+                 layer_index: int):
         super(DecoderLayer, self).__init__()
         self.masked_mha = DifferentialMultiHeadSelfAttention(num_heads, embed_dim, d_model)
-        self.mh_cross_attention = DifferentialMultiHeadCrossAttention(num_heads, embed_dim, d_model)
+        self.mh_cross_attention = DifferentialMultiHeadCrossAttention(num_heads, embed_dim, d_model, layer_index=layer_index)
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
