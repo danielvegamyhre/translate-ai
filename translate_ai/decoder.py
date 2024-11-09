@@ -20,8 +20,8 @@ class Decoder(nn.Module):
         self.position_embedding = nn.Embedding(max_output_tokens, embed_dim)
         self.token_embedding = nn.Embedding(vocab_size, embed_dim)
         self.layers = nn.ModuleList([
-            DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, max_seq_len, layer_index=i) 
-             for i in range(num_layers)
+            DecoderLayer(num_heads, embed_dim, d_model, ffwd_dim, max_seq_len, layer_index=layer_index) 
+             for layer_index in range(num_layers)
         ])
         self.linear = nn.Linear(embed_dim, vocab_size)
 
@@ -47,7 +47,7 @@ class DecoderLayer(nn.Module):
                  max_seq_len: int,
                  layer_index: int):
         super(DecoderLayer, self).__init__()
-        self.masked_mha = DifferentialMultiHeadSelfAttention(num_heads, embed_dim, d_model)
+        self.masked_mha = DifferentialMultiHeadSelfAttention(num_heads, embed_dim, d_model, layer_index=layer_index)
         self.mh_cross_attention = DifferentialMultiHeadCrossAttention(num_heads, embed_dim, d_model, layer_index=layer_index)
         self.ffwd = FeedForward(embed_dim, ffwd_dim)
         self.ln1 = nn.LayerNorm(embed_dim)
@@ -59,7 +59,7 @@ class DecoderLayer(nn.Module):
         B,T,C = x.shape
         decoder_causal_mask = (self.tril[:T, :T] == 0)
         if decoder_padding_mask is not None:
-            decoder_padding_mask = decoder_padding_mask.unsqueeze(1)   # B,T -> B,T,1
+            decoder_padding_mask = decoder_padding_mask.unsqueeze(1)    # B,T   -> B,T,1
             decoder_padding_mask = decoder_padding_mask.expand(-1,T,-1) # B,T,1 -> B,T,T
 
         # B,T,T
