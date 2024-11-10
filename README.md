@@ -1,22 +1,19 @@
 # Translate AI
 
-Making encoder-decoder transfomers cool again.
+Transformer model ([Vaswani, et al 2017](https://arxiv.org/abs/1706.03762)) adapted with a differential attention mechanism ([Ye et al, 2024](https://arxiv.org/pdf/2410.05258)) for translation tasks.
 
-English to Spanish translation model with custom [Datasets](https://github.com/danielvegamyhre/translate-ai/tree/main/translate_ai/datasets) for:
-
-- [English to Spanish Dataset](https://www.kaggle.com/datasets/lonnieqin/englishspanish-translation-dataset/data)
-- [MultiUN dataset](https://opus.nlpl.eu/legacy/MultiUN.php) 
-
-## Feature overview 
-- Encoder decoder transformer architecture closely following the [research paper](https://arxiv.org/pdf/1706.03762) from Google.
-- Easily configurable acceleration (mixed precision training, device type)
-- Easily configurable model (number of layers, number of attention heads embed dim, hidden dim, feedforward dim)
+## Feature overview
+- Includes [Custom torch Datasets](https://github.com/danielvegamyhre/translate-ai/tree/main/translate_ai/datasets) for:
+    - [English to Spanish Dataset](https://www.kaggle.com/datasets/lonnieqin/englishspanish-translation-dataset/data)
+    - [MultiUN dataset](https://opus.nlpl.eu/legacy/MultiUN.php)
 - Observability
     - [Tensorboard](https://www.tensorflow.org/tensorboard) support
     - [Weights and Biases](https://wandb.ai/site/) support
 - [Performance analysis instrumentation](https://github.com/danielvegamyhre/translate-ai/blob/main/dist-perf-analysis.sh) to estimate MFU your model + training config is getting given your hardware specs
     - MFU estimation supports both single-GPU and distributed training
 - Supports distributed training (multi-GPU and multi-node)
+- Easily configurable acceleration (mixed precision training, device type)
+- Easily configurable model (number of layers, number of attention heads embed dim, hidden dim, feedforward dim)
 - Auto-checkpointing support
 - Fast BPE tokenization
 - [Noam learning rate scheduler](https://nn.labml.ai/optimizers/noam.html) as per the paper
