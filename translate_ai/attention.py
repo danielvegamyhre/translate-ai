@@ -20,7 +20,7 @@ class DifferentialMultiHeadCrossAttention(nn.Module):
         ])
         self.linear = nn.Linear(d_model, embed_dim)
         self.dropout = nn.Dropout(dropout)
-        self.rms_norms = nn.ModuleList([nn.RMSNorm(embed_dim) for _ in range(num_heads)])
+        self.rms_norms = nn.ModuleList([nn.RMSNorm(head_dim) for _ in range(num_heads)])
         self.lambda_init = lambda_init
 
     def forward(self, x: torch.Tensor, encoder_out: torch.Tensor) -> torch.Tensor:
@@ -111,7 +111,7 @@ class DifferentialMultiHeadSelfAttention(nn.Module):
         ])
         self.linear = nn.Linear(d_model, embed_dim)
         self.dropout = nn.Dropout(dropout)
-        self.rms_norms = nn.ModuleList([nn.RMSNorm(embed_dim) for _ in range(num_heads)])
+        self.rms_norms = nn.ModuleList([nn.RMSNorm(head_dim) for _ in range(num_heads)])
         self.lambda_init = lambda_init
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
