@@ -2,6 +2,10 @@
 
 Transformer model ([Vaswani, et al 2017](https://arxiv.org/abs/1706.03762)) adapted with a differential attention mechanism ([Ye et al, 2024](https://arxiv.org/pdf/2410.05258)) for translation tasks.
 
+The Differential Transformer paper proposed the differential attention mechanism and studied the impact of its use in the masked multi-head self-attention layer of a decoder-only transformer model. 
+
+The purpose of this project is to continue this research to a full encoder-decoder transformer model, applying the differential attention mechanism in both the cross-attention and self-attention layers.
+
 ## Feature overview
 - Includes [Custom torch Datasets](https://github.com/danielvegamyhre/translate-ai/tree/main/translate_ai/datasets) for:
     - [English to Spanish Dataset](https://www.kaggle.com/datasets/lonnieqin/englishspanish-translation-dataset/data)
