@@ -27,28 +27,29 @@ Training script templates to estimate MFU for:
 - Multi-node training
 
 Example for multi-node training on 2 nodes with 1 GPU each:
-```
+
+```bash
 torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 \
     translate_ai/train.py \
     --dataset-file data/english-spanish.csv \
-    --device cuda \
+    --device cuda \                               # 🔥 Configure device type and mixed precision data type
     --mixed-precision bf16 \
-    --epochs 10 \
+    --epochs 10 \                                 # 🔥 Training hyperparams
     --learning-rate .004 \
     --batch-size 128 \
-    --num-layers 2 \
+    --num-layers 2 \                              # 🔥 Architecture hyperparams
     --embed-dim 128 \
     --d-model 128 \
     --ffwd-dim 512 \
     --seq-len 128 \
     --max-output-tokens 128 \
-    --eval-interval 200 \
+    --eval-interval 200 \                         # 🔥 Evaluation interval and iterations for computing validation loss
     --eval-iters 10 \
     --checkpoint-interval 200 \
     --save-checkpoint checkpoints/chkpt.pt \
-    --wandb-project ${WANDB_PROJECT} \
+    --wandb-project ${WANDB_PROJECT} \            # 🔥 Weights & Biases configuration for training observability
     --wandb-api-key ${WANDB_API_KEY} \
-    --distributed
+    --distributed                                 # 🔥 Use DDP for distributed training
   ```
 
 ## Performance Analysis
@@ -74,9 +75,9 @@ torchrun --nproc_per_node=1 --nnodes 2 --master_port=12345 translate_ai/train.py
     --ffwd-dim 512 \
     --seq-len 128 \
     --max-output-tokens 128 \
-    --hardware-peak-tflops ${HARDWARE_PEAK_TFLOPS} \
-    --distributed \
-    --estimate-mfu
+    --hardware-peak-tflops ${HARDWARE_PEAK_TFLOPS} \    # 🔥 Set peak accelerator TFLOPs by referencing manufacturer docs
+    --distributed \                                     # 🔥 Use DDP
+    --estimate-mfu                                      # 🔥 Run MFU estimation instead of training
 ```
 
 
