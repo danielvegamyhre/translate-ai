@@ -3,8 +3,7 @@ FROM python:3.10
 WORKDIR app
 
 # training and perf analysis scripts
-COPY dist-train.sh dist-train.sh
-COPY dist-perf-analysis.sh dist-perf-analysis.sh
+COPY *.sh .
 
 # codebase
 COPY translate_ai translate_ai

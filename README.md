@@ -6,6 +6,18 @@ The Differential Transformer paper proposed the differential attention mechanism
 
 The purpose of this project is to continue this research to a full encoder-decoder transformer model, applying the differential attention mechanism in both the cross-attention and self-attention layers.
 
+If you use this work in your research, please consider citing it:
+
+```latex
+@misc{translate_ai,
+  author = {Daniel Vega-Myhre},
+  title = {Translate AI: Differential Attention in an Encoder-Decoder Transformer Model},
+  year = {2024},
+  publisher = {GitHub},
+  howpublished = {\url{https://github.com/danielvegamyhre/translate-ai}}
+}
+```
+
 ## Feature overview
 - Includes [Custom torch Datasets](https://github.com/danielvegamyhre/translate-ai/tree/main/translate_ai/datasets) for:
     - [English to Spanish Dataset](https://www.kaggle.com/datasets/lonnieqin/englishspanish-translation-dataset/data)
