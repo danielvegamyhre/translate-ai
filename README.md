@@ -12,9 +12,9 @@ If you use this work in your research, please consider citing it:
 @misc{translate_ai,
   author = {Daniel Vega-Myhre},
   title = {Translate AI: Differential Attention in an Encoder-Decoder Transformer Model},
-  year = {2024},
-  publisher = {GitHub},
-  howpublished = {\url{https://github.com/danielvegamyhre/translate-ai}}
+  month = November,
+  year = 2024,
+  url = {https://github.com/danielvegamyhre/translate-ai}
 }
 ```
 
