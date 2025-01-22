@@ -14,7 +14,7 @@ spec:
           spec:
             containers:
             - name: pytorch
-              image: <YOUR_CONTAINER_IMAGE>
+              image: us-central1-docker.pkg.dev/danielvm-dev/dvm-container-images/translate:latest
               env:
               - name: MASTER_ADDR
                 value: "transformer-workers-0-0.transformer"
@@ -34,10 +34,12 @@ spec:
               # If your'e not using Weights and Biases for observability, you can delete the following 2 environment variables.
               # Be sure to delete the corresponding command line args in the container command below as well.
               - name: WANDB_PROJECT
-                value: <YOUR_WANDB_PROJECT>
-              envFrom:
-              - secretRef:
-                  name: <YOUR_WANDB_SECRET>
+                value: dvm
+              - name: WANDB_API_KEY
+                value: 632fe598e13131654c0125571562a62b8af0f01f
+              # envFrom:
+              # - secretRef:
+              #     name: <YOUR_WANDB_SECRET>
               command:
               - bash
               - -xc

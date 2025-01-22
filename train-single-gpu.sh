@@ -15,5 +15,5 @@ python3 translate_ai/train.py \
     --eval-iters 10 \
     --checkpoint-interval 100 \
     --save-checkpoint checkpoints/chkpt.pt
-    --wandb-project ${WANDB_PROJECT} \
-    --wandb-api-key ${WANDB_API_KEY}
+    # --wandb-project ${WANDB_PROJECT} \
+    # --wandb-api-key ${WANDB_API_KEY}

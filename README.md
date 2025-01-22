@@ -1,4 +1,4 @@
-# Translate AI
+# Differential Translation
 
 Transformer model ([Vaswani, et al 2017](https://arxiv.org/abs/1706.03762)) adapted with a differential attention mechanism ([Ye et al, 2024](https://arxiv.org/pdf/2410.05258)) for translation tasks.
 
@@ -9,7 +9,7 @@ The purpose of this project is to continue this research to a full encoder-decod
 If you use this work in your research, please consider citing it:
 
 ```latex
-@misc{translate_ai,
+@misc{differential_translation,
   author = {Daniel Vega-Myhre},
   title = {Translate AI: Differential Attention in an Encoder-Decoder Transformer Model},
   month = November,
